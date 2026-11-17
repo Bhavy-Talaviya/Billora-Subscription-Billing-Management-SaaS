@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -126,9 +126,11 @@ function StatBadge({
 export default function CustomerDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
+  const resolvedParams = use(params);
+  const id = resolvedParams.id;
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -137,7 +139,7 @@ export default function CustomerDetailPage({
   const fetchCustomer = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/customers/${params.id}`);
+      const res = await fetch(`/api/customers/${id}`);
       if (!res.ok) {
         if (res.status === 404) {
           toast.error("Customer not found.");
@@ -156,7 +158,7 @@ export default function CustomerDetailPage({
 
   useEffect(() => {
     fetchCustomer();
-  }, [params.id]);
+  }, [id]);
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "overview", label: "Overview" },

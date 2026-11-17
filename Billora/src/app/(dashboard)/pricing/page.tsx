@@ -1,252 +1,428 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Check, Zap, Sparkles, Shield, ArrowRight } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  Tag,
+  RefreshCw,
+  Pencil,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Package,
+  Layers,
+  CheckCircle2,
+} from "lucide-react";
 import { PageContainer } from "@/components/shared/PageContainer";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { StatCard } from "@/components/shared/StatCard";
+import { TableSkeleton } from "@/components/shared/LoadingSkeleton";
+import { FilterDropdown } from "@/components/shared/FilterDropdown";
+import { PriceFormDialog } from "@/components/products/PriceFormDialog";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FormDialog } from "@/components/shared/FormDialog";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { formatPrice, formatIntervalLabel } from "@/lib/utils/currency";
 
-interface PlanTier {
+interface PriceItem {
   id: string;
-  name: string;
-  badge?: string;
-  description: string;
-  monthlyPrice: number;
-  annualPrice: number;
-  features: string[];
-  subscribers: number;
-  isPopular?: boolean;
+  amount: string;
+  currency: string;
+  billingInterval: "MONTHLY" | "YEARLY" | "ONE_TIME";
+  active: boolean;
+  createdAt: string;
+  product: {
+    id: string;
+    name: string;
+    active: boolean;
+  };
+  _count: {
+    subscriptions: number;
+  };
 }
 
-const planTiers: PlanTier[] = [
-  {
-    id: "plan-starter",
-    name: "Starter",
-    description: "Essential billing features for indie developers, early startups, and freelancers.",
-    monthlyPrice: 49,
-    annualPrice: 39,
-    features: [
-      "Up to 500 active customers",
-      "Standard PDF invoice generator",
-      "Single currency billing (USD)",
-      "Automated payment receipts",
-      "Standard email support",
-      "Basic reporting dashboard",
-    ],
-    subscribers: 450,
-  },
-  {
-    id: "plan-pro",
-    name: "Professional",
-    badge: "Most Popular",
-    isPopular: true,
-    description: "Comprehensive recurring revenue automation for scaling SaaS businesses.",
-    monthlyPrice: 129,
-    annualPrice: 99,
-    features: [
-      "Up to 10,000 active customers",
-      "Automated dunning & failed payment retries",
-      "Multi-currency support (EUR, GBP, CAD)",
-      "Customer self-service portal",
-      "Custom branded invoice templates",
-      "Webhook event notifications",
-      "Priority email & chat support",
-    ],
-    subscribers: 720,
-  },
-  {
-    id: "plan-enterprise",
-    name: "Enterprise",
-    description: "Dedicated infrastructure, volume pricing, and custom contract workflows.",
-    monthlyPrice: 249,
-    annualPrice: 199,
-    features: [
-      "Unlimited active customers",
-      "Dedicated account manager",
-      "Custom contract & metered billing rules",
-      "99.99% uptime guarantee SLA",
-      "Audit log access & enterprise SSO",
-      "Custom webhook concurrency",
-      "24/7 emergency phone support",
-    ],
-    subscribers: 258,
-  },
-];
+interface ProductOption {
+  id: string;
+  name: string;
+}
 
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const router = useRouter();
+  const [prices, setPrices] = useState<PriceItem[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [intervalFilter, setIntervalFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedProductId, setSelectedProductId] = useState("all");
+
+  // Dialogs
+  const [addPriceOpen, setAddPriceOpen] = useState(false);
+  const [editPriceOpen, setEditPriceOpen] = useState(false);
+  const [deletePriceOpen, setDeletePriceOpen] = useState(false);
+  const [selectedPrice, setSelectedPrice] = useState<PriceItem | null>(null);
+
+  const fetchPrices = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedProductId !== "all") {
+        params.append("productId", selectedProductId);
+      }
+      if (statusFilter !== "all") {
+        params.append("active", statusFilter === "active" ? "true" : "false");
+      }
+      const res = await fetch(`/api/prices?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load prices");
+      const data: PriceItem[] = await res.json();
+      setPrices(data);
+    } catch {
+      toast.error("Failed to load pricing plans");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedProductId, statusFilter]);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch("/api/products?limit=100");
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data.products || []);
+      }
+    } catch {
+      console.error("Failed to fetch products list");
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    fetchPrices();
+  }, [fetchPrices]);
+
+  const handleToggleActive = async (price: PriceItem) => {
+    try {
+      const res = await fetch(`/api/prices/${price.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !price.active }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to update price status");
+      }
+      toast.success(
+        `Price ${!price.active ? "activated" : "deactivated"} successfully.`
+      );
+      fetchPrices();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const filteredPrices = prices.filter((p) => {
+    if (intervalFilter !== "all" && p.billingInterval !== intervalFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  const activePricesCount = prices.filter((p) => p.active).length;
+  const monthlyCount = prices.filter((p) => p.billingInterval === "MONTHLY").length;
+  const yearlyCount = prices.filter((p) => p.billingInterval === "YEARLY").length;
+  const oneTimeCount = prices.filter((p) => p.billingInterval === "ONE_TIME").length;
 
   return (
     <PageContainer>
       <PageHeader
         title="Pricing Plans"
-        description="Configure subscription tiers, recurring billing intervals, and feature allocations."
+        description="Manage recurring subscription tiers, billing intervals, and multi-currency pricing."
       >
-        <Button
-          onClick={() => setDialogOpen(true)}
-          className="h-9 gap-1.5 bg-[#2563EB] hover:bg-blue-700 text-white"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Plan Tier</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchPrices}
+            className="h-9 gap-1.5"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Button
+            onClick={() => {
+              if (products.length === 0) {
+                toast.error("Please create a product first before adding pricing plans.");
+                router.push("/products");
+                return;
+              }
+              setSelectedPrice(null);
+              setAddPriceOpen(true);
+            }}
+            className="h-9 gap-1.5 bg-[#2563EB] hover:bg-blue-700 text-white"
+          >
+            <Plus className="h-4 w-4" />
+            Add Pricing Plan
+          </Button>
+        </div>
       </PageHeader>
 
-      {/* Billing Interval Switcher */}
-      <div className="flex items-center justify-center my-4">
-        <div className="flex items-center rounded-lg border border-[#E5E7EB] bg-white p-1 shadow-sm">
-          <button
-            onClick={() => setBillingCycle("monthly")}
-            className={`rounded-md px-4 py-1.5 text-xs font-semibold transition-all ${
-              billingCycle === "monthly"
-                ? "bg-[#2563EB] text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Monthly Billing
-          </button>
-          <button
-            onClick={() => setBillingCycle("annual")}
-            className={`flex items-center gap-1.5 rounded-md px-4 py-1.5 text-xs font-semibold transition-all ${
-              billingCycle === "annual"
-                ? "bg-[#2563EB] text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <span>Annual Billing</span>
-            <span className="rounded-full bg-emerald-100 text-[#16A34A] px-1.5 py-0.2 text-[10px] font-bold">
-              Save 20%
-            </span>
-          </button>
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Plans"
+          value={prices.length.toString()}
+          change={`${activePricesCount} active`}
+          trend="up"
+          icon={Tag}
+        />
+        <StatCard
+          title="Monthly Plans"
+          value={monthlyCount.toString()}
+          change="Recurring"
+          trend="up"
+          icon={Layers}
+        />
+        <StatCard
+          title="Yearly Plans"
+          value={yearlyCount.toString()}
+          change="Annual billing"
+          trend="up"
+          icon={CheckCircle2}
+        />
+        <StatCard
+          title="One-Time Packages"
+          value={oneTimeCount.toString()}
+          change="Lifetime/Setup"
+          trend="up"
+          icon={Package}
+        />
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterDropdown
+            label="Product"
+            selectedValue={selectedProductId}
+            onSelect={setSelectedProductId}
+            options={[
+              { label: "All Products", value: "all" },
+              ...products.map((p) => ({ label: p.name, value: p.id })),
+            ]}
+          />
+          <FilterDropdown
+            label="Billing Interval"
+            selectedValue={intervalFilter}
+            onSelect={setIntervalFilter}
+            options={[
+              { label: "All Intervals", value: "all" },
+              { label: "Monthly", value: "MONTHLY" },
+              { label: "Yearly", value: "YEARLY" },
+              { label: "One-Time", value: "ONE_TIME" },
+            ]}
+          />
+          <FilterDropdown
+            label="Status"
+            selectedValue={statusFilter}
+            onSelect={setStatusFilter}
+            options={[
+              { label: "All Statuses", value: "all" },
+              { label: "Active Only", value: "active" },
+              { label: "Inactive Only", value: "inactive" },
+            ]}
+          />
         </div>
       </div>
 
-      {/* 3 Pricing Tier Cards Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {planTiers.map((plan) => {
-          const price = billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
-
-          return (
-            <Card
-              key={plan.id}
-              className={`relative flex flex-col justify-between border-2 transition-all hover:shadow-lg ${
-                plan.isPopular
-                  ? "border-[#2563EB] shadow-md"
-                  : "border-[#E5E7EB]"
+      {/* Pricing Cards Grid */}
+      {loading ? (
+        <TableSkeleton rows={6} cols={5} />
+      ) : filteredPrices.length === 0 ? (
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-12 text-center">
+          <Tag className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+          <h3 className="text-base font-semibold text-slate-800">
+            No pricing plans found
+          </h3>
+          <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+            Try adjusting your product or interval filters, or create your first
+            pricing plan.
+          </p>
+          <Button
+            onClick={() => {
+              if (products.length === 0) {
+                router.push("/products");
+              } else {
+                setAddPriceOpen(true);
+              }
+            }}
+            className="mt-4 bg-[#2563EB] hover:bg-blue-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add First Plan
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredPrices.map((price) => (
+            <div
+              key={price.id}
+              className={`flex flex-col justify-between rounded-xl border bg-white p-5 transition-all shadow-sm hover:shadow-md ${
+                price.active ? "border-[#E5E7EB]" : "border-slate-200 opacity-70 bg-slate-50/50"
               }`}
             >
-              {plan.isPopular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                    {plan.badge}
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-semibold text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-full">
+                      {price.product.name}
+                    </span>
+                    <h3 className="text-xl font-bold text-slate-900 mt-2">
+                      {formatPrice(price.amount, price.currency, price.billingInterval)}
+                    </h3>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                      price.active
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-slate-100 text-slate-500 border-slate-200"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        price.active ? "bg-green-500" : "bg-slate-400"
+                      }`}
+                    />
+                    {price.active ? "Active" : "Inactive"}
                   </span>
                 </div>
-              )}
 
-              <CardHeader className="pt-6">
-                <CardTitle className="text-xl font-bold text-slate-900">
-                  {plan.name}
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500 min-h-[36px]">
-                  {plan.description}
-                </CardDescription>
-
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold tracking-tight text-slate-900">
-                    ${price}
-                  </span>
-                  <span className="text-xs font-medium text-slate-500">
-                    / user / month
-                  </span>
+                <div className="mt-4 space-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Billing Cycle:</span>
+                    <span className="font-semibold text-slate-800">
+                      {formatIntervalLabel(price.billingInterval)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Currency:</span>
+                    <span className="font-semibold text-slate-800">{price.currency}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subscribers:</span>
+                    <span className="font-semibold text-blue-600">
+                      {price._count.subscriptions} subscription{price._count.subscriptions !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Created:</span>
+                    <span className="text-slate-600">
+                      {format(new Date(price.createdAt), "MMM d, yyyy")}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  {billingCycle === "annual" ? "Billed annually" : "Billed monthly"}
-                </p>
+              </div>
 
-                <div className="mt-4 py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">Active Subscribers</span>
-                  <strong className="text-slate-900 font-bold">{plan.subscribers} companies</strong>
-                </div>
-              </CardHeader>
-
-              <CardContent className="flex-1 py-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-900 mb-3">
-                  Included Features:
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-600">
-                  {plan.features.map((feat, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 shrink-0 text-[#16A34A] mt-0.5" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-
-              <CardFooter className="pt-2">
+              <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3 gap-2">
                 <Button
-                  onClick={() => toast.success(`Configuring ${plan.name} plan rules...`)}
-                  variant={plan.isPopular ? "default" : "outline"}
-                  className={`w-full h-10 ${
-                    plan.isPopular
-                      ? "bg-[#2563EB] hover:bg-blue-700 text-white"
-                      : "border-[#E5E7EB] hover:bg-slate-50 text-slate-800"
-                  }`}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleToggleActive(price)}
+                  className="h-8 text-xs text-slate-600 hover:text-slate-900"
                 >
-                  Edit Plan Details
+                  {price.active ? (
+                    <>
+                      <ToggleLeft className="h-3.5 w-3.5 mr-1 text-slate-400" />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <ToggleRight className="h-3.5 w-3.5 mr-1 text-green-600" />
+                      Activate
+                    </>
+                  )}
                 </Button>
-              </CardFooter>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Plan Creator Dialog */}
-      <FormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title="Add Pricing Tier"
-        description="Create a new pricing plan tier with customizable recurring schedules."
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-semibold text-slate-700">Tier Name</label>
-            <Input placeholder="e.g. Growth Plan" className="mt-1" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Monthly Price ($)</label>
-              <Input type="number" placeholder="79" className="mt-1" />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPrice(price);
+                      setEditPriceOpen(true);
+                    }}
+                    className="h-8 px-2 text-xs text-slate-600"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPrice(price);
+                      setDeletePriceOpen(true);
+                    }}
+                    className="h-8 px-2 text-xs text-[#EF4444] hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Annual Price ($/mo)</label>
-              <Input type="number" placeholder="59" className="mt-1" />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-700">Description</label>
-            <Input placeholder="Short summary of this plan" className="mt-1" />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-[#2563EB] hover:bg-blue-700"
-              onClick={() => {
-                toast.success("Pricing plan created successfully");
-                setDialogOpen(false);
-              }}
-            >
-              Create Tier
-            </Button>
-          </div>
+          ))}
         </div>
-      </FormDialog>
+      )}
+
+      {/* Add Price Dialog */}
+      {products.length > 0 && (
+        <PriceFormDialog
+          open={addPriceOpen}
+          onOpenChange={setAddPriceOpen}
+          onSuccess={fetchPrices}
+          productId={products[0].id}
+          productName={products[0].name}
+          initialData={null}
+        />
+      )}
+
+      {/* Edit Price Dialog */}
+      {selectedPrice && (
+        <PriceFormDialog
+          open={editPriceOpen}
+          onOpenChange={setEditPriceOpen}
+          onSuccess={fetchPrices}
+          productId={selectedPrice.product.id}
+          productName={selectedPrice.product.name}
+          initialData={selectedPrice}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      <DeleteConfirmDialog
+        open={deletePriceOpen}
+        onOpenChange={setDeletePriceOpen}
+        title="Delete Pricing Plan"
+        description={`Are you sure you want to delete ${
+          selectedPrice
+            ? formatPrice(
+                selectedPrice.amount,
+                selectedPrice.currency,
+                selectedPrice.billingInterval
+              )
+            : "this pricing plan"
+        }?`}
+        policyNote="Pricing plans with existing subscriptions cannot be permanently deleted. Deactivate the plan instead to prevent new subscribers while preserving historical billing data."
+        apiUrl={`/api/prices/${selectedPrice?.id}`}
+        onSuccess={() => {
+          setSelectedPrice(null);
+          fetchPrices();
+        }}
+      />
     </PageContainer>
   );
 }
