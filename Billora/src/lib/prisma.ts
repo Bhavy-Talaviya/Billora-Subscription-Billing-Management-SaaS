@@ -1,7 +1,20 @@
-/**
- * Global Prisma Client instantiation
- * Prevents multiple instances of Prisma Client in development.
- */
+import { PrismaClient } from "@prisma/client";
 
-// Placeholder for PrismaClient initialization when @prisma/client is installed
-export const prisma = (globalThis as unknown as { prisma: unknown }).prisma ?? null;
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log:
+      process.env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error"],
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
+
+export default prisma;
