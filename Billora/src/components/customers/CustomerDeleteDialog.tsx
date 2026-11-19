@@ -65,7 +65,7 @@ export function CustomerDeleteDialog({
           </div>
           <DialogDescription className="text-slate-500 text-sm mt-2">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-slate-700">"{customerName}"</span>?
+            <span className="font-semibold text-slate-700">&quot;{customerName}&quot;</span>?
           </DialogDescription>
         </DialogHeader>
 

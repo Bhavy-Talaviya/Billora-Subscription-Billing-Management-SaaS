@@ -111,7 +111,7 @@ export function UpdatePaymentStatusDialog({
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600 mt-2">
             <strong>Ledger Rule:</strong> Updating this payment status will
-            automatically re-sync the parent invoice's settlement balance and
+            automatically re-sync the parent invoice&apos;s settlement balance and
             status in real time.
           </div>
         </div>

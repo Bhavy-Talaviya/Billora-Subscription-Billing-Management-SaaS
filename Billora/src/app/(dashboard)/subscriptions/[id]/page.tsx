@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -114,7 +114,7 @@ export default function SubscriptionDetailPage({
   const [actionOpen, setActionOpen] = useState(false);
   const [actionType, setActionType] = useState<SubscriptionActionType>("PAUSE");
 
-  const fetchSubscription = async () => {
+  const fetchSubscription = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/subscriptions/${id}`);
@@ -133,11 +133,11 @@ export default function SubscriptionDetailPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
 
   useEffect(() => {
     fetchSubscription();
-  }, [id]);
+  }, [fetchSubscription]);
 
   const openAction = (type: SubscriptionActionType) => {
     setActionType(type);

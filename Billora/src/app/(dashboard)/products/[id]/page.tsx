@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -64,7 +64,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [deletePriceOpen, setDeletePriceOpen] = useState(false);
   const [deletingPrice, setDeletingPrice] = useState<PriceRow | null>(null);
 
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/products/${id}`);
@@ -78,9 +78,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
 
-  useEffect(() => { fetchProduct(); }, [id]);
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
 
   const handleToggleProductActive = async () => {
     if (!product) return;
