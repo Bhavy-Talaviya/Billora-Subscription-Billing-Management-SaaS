@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Menu,
   Bell,
@@ -8,6 +10,7 @@ import {
   CheckCircle2,
   Sparkles,
   HelpCircle,
+  User,
 } from "lucide-react";
 import { Breadcrumb } from "./Breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -18,7 +21,17 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenMobileSidebar }: HeaderProps) {
+  const { data: session } = useSession();
   const [notificationCount] = useState(2);
+
+  const userName = session?.user?.name || "Admin";
+  const firstName = userName.split(" ")[0] || "User";
+  const initials = userName
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "BT";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#E5E7EB] bg-white px-4 sm:px-6">
@@ -79,14 +92,18 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
         <div className="h-5 w-px bg-slate-200 hidden sm:block" />
 
         {/* Quick User Avatar */}
-        <div className="flex items-center gap-2 pl-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white font-semibold text-xs ring-2 ring-slate-100">
-            BT
+        <Link
+          href="/settings"
+          className="flex items-center gap-2 pl-1 hover:opacity-85 transition-opacity"
+          title="Account Settings"
+        >
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563EB] text-white font-semibold text-xs ring-2 ring-blue-100">
+            {initials}
           </div>
           <span className="hidden lg:block text-xs font-semibold text-slate-800">
-            Bhavy
+            {firstName}
           </span>
-        </div>
+        </Link>
       </div>
     </header>
   );
