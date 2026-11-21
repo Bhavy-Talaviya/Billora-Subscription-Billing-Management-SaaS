@@ -4,7 +4,13 @@ import {
   UpdateSubscriptionInput,
   ChangePlanInput,
 } from "@/lib/validations/subscription";
-import { Prisma, SubscriptionStatus, BillingInterval } from "@prisma/client";
+import {
+  Prisma,
+  SubscriptionStatus,
+  BillingInterval,
+  InvoiceStatus,
+  PaymentStatus,
+} from "@prisma/client";
 import { addMonths, addYears, addDays } from "date-fns";
 
 export interface GetSubscriptionsParams {
@@ -82,7 +88,7 @@ export async function getSubscriptions(
   if (upcomingDays && upcomingDays > 0) {
     const now = new Date();
     const futureLimit = addDays(now, upcomingDays);
-    where.status = "ACTIVE";
+    where.status = SubscriptionStatus.ACTIVE;
     where.nextBillingDate = {
       gte: now,
       lte: futureLimit,
@@ -202,13 +208,15 @@ export async function createSubscription(
       ? addYears(startDate, 100)
       : calculateNextBilling(startDate, price.billingInterval);
 
+  const ownerId = userId || customer.userId || null;
+
   return await prisma.$transaction(async (tx) => {
     const subscription = await tx.subscription.create({
       data: {
-        userId: userId || null,
+        userId: ownerId,
         customerId: data.customerId,
         priceId: data.priceId,
-        status: "ACTIVE",
+        status: SubscriptionStatus.ACTIVE,
         startDate,
         currentPeriodStart,
         currentPeriodEnd,
@@ -228,7 +236,7 @@ export async function createSubscription(
 
     await tx.invoice.create({
       data: {
-        userId: userId || null,
+        userId: ownerId,
         customerId: data.customerId,
         subscriptionId: subscription.id,
         invoiceNumber,
@@ -238,7 +246,7 @@ export async function createSubscription(
         discount: 0,
         tax: 0,
         total,
-        status: "PAID",
+        status: InvoiceStatus.PAID,
         notes: `Initial subscription charge for ${price.product.name} (${price.billingInterval}).`,
         items: {
           create: {
@@ -250,11 +258,11 @@ export async function createSubscription(
         },
         payments: {
           create: {
-            userId: userId || null,
+            userId: ownerId,
             customerId: data.customerId,
             amount: total,
             paymentMethod: "CARD",
-            status: "SUCCEEDED",
+            status: PaymentStatus.SUCCEEDED,
             transactionReference: `TX-${Date.now().toString().slice(-8)}`,
             paidAt: firstBilling,
           },
@@ -279,7 +287,7 @@ export async function pauseSubscription(id: string, userId?: string | null) {
 
   if (!existing) throw new Error("Subscription not found.");
 
-  if (existing.status !== "ACTIVE") {
+  if (existing.status !== SubscriptionStatus.ACTIVE) {
     throw new Error(
       `Cannot pause subscription in '${existing.status}' status. Only ACTIVE subscriptions can be paused.`
     );
@@ -288,7 +296,7 @@ export async function pauseSubscription(id: string, userId?: string | null) {
   return await prisma.subscription.update({
     where: { id },
     data: {
-      status: "PAUSED",
+      status: SubscriptionStatus.PAUSED,
       pausedAt: new Date(),
     },
     include: {
@@ -312,7 +320,7 @@ export async function resumeSubscription(id: string, userId?: string | null) {
 
   if (!existing) throw new Error("Subscription not found.");
 
-  if (existing.status !== "PAUSED") {
+  if (existing.status !== SubscriptionStatus.PAUSED) {
     throw new Error(
       `Cannot resume subscription in '${existing.status}' status. Only PAUSED subscriptions can be resumed.`
     );
@@ -327,7 +335,7 @@ export async function resumeSubscription(id: string, userId?: string | null) {
   return await prisma.subscription.update({
     where: { id },
     data: {
-      status: "ACTIVE",
+      status: SubscriptionStatus.ACTIVE,
       pausedAt: null,
       nextBillingDate,
       currentPeriodEnd: nextBillingDate || existing.currentPeriodEnd,
@@ -352,14 +360,14 @@ export async function cancelSubscription(id: string, userId?: string | null) {
 
   if (!existing) throw new Error("Subscription not found.");
 
-  if (existing.status === "CANCELLED") {
+  if (existing.status === SubscriptionStatus.CANCELLED) {
     throw new Error("Subscription is already cancelled.");
   }
 
   return await prisma.subscription.update({
     where: { id },
     data: {
-      status: "CANCELLED",
+      status: SubscriptionStatus.CANCELLED,
       cancelledAt: new Date(),
       nextBillingDate: null,
     },
@@ -388,7 +396,7 @@ export async function changeSubscriptionPlan(
 
   if (!existing) throw new Error("Subscription not found.");
 
-  if (existing.status === "CANCELLED") {
+  if (existing.status === SubscriptionStatus.CANCELLED) {
     throw new Error("Cannot change plan of a CANCELLED subscription.");
   }
 
@@ -414,6 +422,7 @@ export async function changeSubscriptionPlan(
 
   const isUpgrade = Number(newPrice.amount) > Number(existing.price.amount);
   const actionType = isUpgrade ? "UPGRADE" : "DOWNGRADE";
+  const ownerId = userId || existing.userId || null;
 
   return await prisma.$transaction(async (tx) => {
     const updated = await tx.subscription.update({
@@ -434,7 +443,7 @@ export async function changeSubscriptionPlan(
       const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-CHG`;
       await tx.invoice.create({
         data: {
-          userId: userId || null,
+          userId: ownerId,
           customerId: existing.customerId,
           subscriptionId: existing.id,
           invoiceNumber,
@@ -444,7 +453,7 @@ export async function changeSubscriptionPlan(
           discount: 0,
           tax: 0,
           total: newPrice.amount,
-          status: "PAID",
+          status: InvoiceStatus.PAID,
           notes: `Plan change (${actionType}) from ${existing.price.product.name} ($${existing.price.amount}) to ${newPrice.product.name} ($${newPrice.amount}). Effective immediately.`,
           items: {
             create: {
@@ -456,11 +465,11 @@ export async function changeSubscriptionPlan(
           },
           payments: {
             create: {
-              userId: userId || null,
+              userId: ownerId,
               customerId: existing.customerId,
               amount: newPrice.amount,
               paymentMethod: "CARD",
-              status: "SUCCEEDED",
+              status: PaymentStatus.SUCCEEDED,
               transactionReference: `TX-${Date.now().toString().slice(-8)}`,
               paidAt: now,
             },
@@ -489,7 +498,7 @@ export async function renewSubscription(id: string, userId?: string | null) {
   });
 
   if (!sub) throw new Error("Subscription not found.");
-  if (sub.status !== "ACTIVE") {
+  if (sub.status !== SubscriptionStatus.ACTIVE) {
     throw new Error(`Cannot renew subscription in '${sub.status}' status.`);
   }
 
@@ -501,6 +510,7 @@ export async function renewSubscription(id: string, userId?: string | null) {
   const baseDate = sub.nextBillingDate || now;
   const newNextBilling = calculateNextBilling(baseDate, sub.price.billingInterval);
   const newPeriodEnd = newNextBilling;
+  const ownerId = userId || sub.userId || null;
 
   return await prisma.$transaction(async (tx) => {
     const updated = await tx.subscription.update({
@@ -519,7 +529,7 @@ export async function renewSubscription(id: string, userId?: string | null) {
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-REN`;
     await tx.invoice.create({
       data: {
-        userId: userId || null,
+        userId: ownerId,
         customerId: sub.customerId,
         subscriptionId: sub.id,
         invoiceNumber,
@@ -529,7 +539,7 @@ export async function renewSubscription(id: string, userId?: string | null) {
         discount: 0,
         tax: 0,
         total: sub.price.amount,
-        status: "PAID",
+        status: InvoiceStatus.PAID,
         notes: `Simulated subscription renewal for ${sub.price.product.name} (${sub.price.billingInterval}).`,
         items: {
           create: {
@@ -541,11 +551,11 @@ export async function renewSubscription(id: string, userId?: string | null) {
         },
         payments: {
           create: {
-            userId: userId || null,
+            userId: ownerId,
             customerId: sub.customerId,
             amount: sub.price.amount,
             paymentMethod: "CARD",
-            status: "SUCCEEDED",
+            status: PaymentStatus.SUCCEEDED,
             transactionReference: `TX-${Date.now().toString().slice(-8)}`,
             paidAt: now,
           },
