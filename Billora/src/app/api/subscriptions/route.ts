@@ -4,6 +4,7 @@ import {
   createSubscription,
 } from "@/services/subscription.service";
 import { createSubscriptionSchema } from "@/lib/validations/subscription";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,16 +23,21 @@ export async function GET(req: NextRequest) {
       Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10))
     );
 
-    const result = await getSubscriptions({
-      search,
-      status,
-      customerId,
-      productId,
-      interval,
-      upcomingDays,
-      page,
-      limit,
-    });
+    const userId = await getSessionUserId();
+
+    const result = await getSubscriptions(
+      {
+        search,
+        status,
+        customerId,
+        productId,
+        interval,
+        upcomingDays,
+        page,
+        limit,
+      },
+      userId
+    );
 
     return NextResponse.json(result);
   } catch (error: any) {
@@ -56,14 +62,14 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const subscription = await createSubscription(parsed.data);
+    const userId = await getSessionUserId();
+    const subscription = await createSubscription(parsed.data, userId);
     return NextResponse.json(subscription, { status: 201 });
   } catch (error: any) {
     console.error("[POST /api/subscriptions]", error);
     return NextResponse.json(
       { error: error.message ?? "Server error" },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }

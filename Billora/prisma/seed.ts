@@ -42,6 +42,7 @@ async function main() {
   // 3. Create exactly 1 Customer
   const customer = await prisma.customer.create({
     data: {
+      userId: user.id,
       name: "Acme Corporation",
       email: "billing@acme.com",
       phone: "+1 (555) 234-5678",
@@ -59,6 +60,7 @@ async function main() {
   // 4. Create exactly 1 Product
   const product = await prisma.product.create({
     data: {
+      userId: user.id,
       name: "Billora Cloud Platform",
       description: "Full-featured SaaS recurring billing, automated invoicing, and subscription management suite.",
       active: true,
@@ -81,6 +83,7 @@ async function main() {
   // 6. Create exactly 1 Subscription
   const subscription = await prisma.subscription.create({
     data: {
+      userId: user.id,
       customerId: customer.id,
       priceId: price.id,
       status: SubscriptionStatus.ACTIVE,
@@ -95,6 +98,7 @@ async function main() {
   // 7. Create exactly 1 Invoice
   const invoice = await prisma.invoice.create({
     data: {
+      userId: user.id,
       customerId: customer.id,
       subscriptionId: subscription.id,
       invoiceNumber: "INV-2026-001",
@@ -125,6 +129,7 @@ async function main() {
   // 9. Create exactly 1 Payment
   const payment = await prisma.payment.create({
     data: {
+      userId: user.id,
       invoiceId: invoice.id,
       customerId: customer.id,
       amount: 49.0,

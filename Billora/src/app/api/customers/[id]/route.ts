@@ -5,6 +5,7 @@ import {
   deleteCustomer,
 } from "@/services/customer.service";
 import { updateCustomerSchema } from "@/lib/validations/customer";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -23,7 +24,8 @@ export async function GET(
       );
     }
 
-    const customer = await getCustomerById(id);
+    const userId = await getSessionUserId();
+    const customer = await getCustomerById(id, userId);
     if (!customer) {
       return NextResponse.json(
         { error: "Customer not found" },
@@ -66,7 +68,8 @@ export async function PATCH(
       );
     }
 
-    const updated = await updateCustomer(id, validationResult.data);
+    const userId = await getSessionUserId();
+    const updated = await updateCustomer(id, validationResult.data, userId);
     return NextResponse.json(updated, { status: 200 });
   } catch (error: any) {
     console.error("PATCH /api/customers/[id] error:", error);
@@ -92,18 +95,18 @@ export async function DELETE(
       );
     }
 
-    await deleteCustomer(id);
+    const userId = await getSessionUserId();
+    await deleteCustomer(id, userId);
     return NextResponse.json(
-      { message: "Customer profile successfully deleted" },
+      { message: "Customer deleted successfully" },
       { status: 200 }
     );
   } catch (error: any) {
     console.error("DELETE /api/customers/[id] error:", error);
-    const isRestricted = error.message?.includes("Cannot delete customer");
     const isNotFound = error.message?.includes("not found");
     return NextResponse.json(
       { error: error.message || "Failed to delete customer" },
-      { status: isNotFound ? 404 : isRestricted ? 400 : 500 }
+      { status: isNotFound ? 404 : 400 }
     );
   }
 }

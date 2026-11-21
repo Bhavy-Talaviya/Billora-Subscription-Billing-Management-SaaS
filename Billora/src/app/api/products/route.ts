@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProducts, createProduct } from "@/services/product.service";
 import { productSchema } from "@/lib/validations/product";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +13,8 @@ export async function GET(req: NextRequest) {
     const active =
       activeParam === "true" ? true : activeParam === "false" ? false : null;
 
-    const result = await getProducts({ search, page, limit, active });
+    const userId = await getSessionUserId();
+    const result = await getProducts({ search, page, limit, active }, userId);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("[GET /api/products]", error);
@@ -30,7 +32,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const product = await createProduct(parsed.data);
+    const userId = await getSessionUserId();
+    const product = await createProduct(parsed.data, userId);
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {
     console.error("[POST /api/products]", error);

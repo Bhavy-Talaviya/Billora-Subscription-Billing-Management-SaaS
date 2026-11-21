@@ -41,12 +41,14 @@ export async function generateTransactionReference(): Promise<string> {
 }
 
 /**
- * Calculate the remaining unpaid balance of an invoice.
- * Balance = Total - sum(SUCCEEDED payments)
+ * Calculate the remaining unpaid balance of an invoice scoped by tenant.
  */
-export async function getInvoiceBalance(invoiceId: string) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
+export async function getInvoiceBalance(invoiceId: string, userId?: string | null) {
+  const invoice = await prisma.invoice.findFirst({
+    where: {
+      id: invoiceId,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       payments: {
         where: { status: "SUCCEEDED" },
@@ -75,9 +77,12 @@ export async function getInvoiceBalance(invoiceId: string) {
 }
 
 /**
- * List all payments with filtering, search, pagination, and customer/invoice joins.
+ * List all payments with filtering, search, pagination scoped by tenant (userId).
  */
-export async function getPayments(params: GetPaymentsParams = {}) {
+export async function getPayments(
+  params: GetPaymentsParams = {},
+  userId?: string | null
+) {
   const {
     search = "",
     status,
@@ -91,17 +96,16 @@ export async function getPayments(params: GetPaymentsParams = {}) {
   } = params;
   const skip = (page - 1) * limit;
 
-  const where: Prisma.PaymentWhereInput = {};
+  const where: Prisma.PaymentWhereInput = {
+    ...(userId ? { userId } : {}),
+  };
 
   if (status && status !== "all") {
     where.status = status as PaymentStatus;
   }
 
   if (method && method !== "all") {
-    where.paymentMethod = {
-      contains: method,
-      mode: "insensitive",
-    };
+    where.paymentMethod = { contains: method, mode: "insensitive" };
   }
 
   if (customerId) {
@@ -124,12 +128,17 @@ export async function getPayments(params: GetPaymentsParams = {}) {
 
   if (search.trim()) {
     const s = search.trim();
-    where.OR = [
-      { transactionReference: { contains: s, mode: "insensitive" } },
-      { invoice: { invoiceNumber: { contains: s, mode: "insensitive" } } },
-      { customer: { name: { contains: s, mode: "insensitive" } } },
-      { customer: { email: { contains: s, mode: "insensitive" } } },
-      { customer: { company: { contains: s, mode: "insensitive" } } },
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      {
+        OR: [
+          { transactionReference: { contains: s, mode: "insensitive" } },
+          { invoice: { invoiceNumber: { contains: s, mode: "insensitive" } } },
+          { customer: { name: { contains: s, mode: "insensitive" } } },
+          { customer: { email: { contains: s, mode: "insensitive" } } },
+          { customer: { company: { contains: s, mode: "insensitive" } } },
+        ],
+      },
     ];
   }
 
@@ -171,11 +180,14 @@ export async function getPayments(params: GetPaymentsParams = {}) {
 }
 
 /**
- * Get payment transaction details by ID.
+ * Get payment transaction details by ID scoped by tenant.
  */
-export async function getPaymentById(id: string) {
-  const payment = await prisma.payment.findUnique({
-    where: { id },
+export async function getPaymentById(id: string, userId?: string | null) {
+  const payment = await prisma.payment.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       customer: true,
       invoice: {
@@ -193,22 +205,20 @@ export async function getPaymentById(id: string) {
 }
 
 /**
- * Record a payment against an invoice using database transactions.
- * Business Rules:
- * - Checks invoice existence and status.
- * - Prevents overpayment: payment amount cannot exceed remaining balance.
- * - Only SUCCEEDED payments reduce invoice balance.
- * - If remaining balance reaches 0 via SUCCEEDED payment, sets invoice status to PAID.
- * - If partial payment, keeps invoice as PENDING (or OVERDUE if past due date).
- * - FAILED or PENDING payments do not alter invoice balance.
+ * Record a payment against an invoice scoped by tenant (userId).
  */
-export async function recordPayment(data: CreatePaymentInput) {
+export async function recordPayment(
+  data: CreatePaymentInput,
+  userId?: string | null
+) {
   const paymentAmount = new Decimal(data.amount);
 
   return await prisma.$transaction(async (tx) => {
-    // 1. Fetch invoice and existing SUCCEEDED payments
-    const invoice = await tx.invoice.findUnique({
-      where: { id: data.invoiceId },
+    const invoice = await tx.invoice.findFirst({
+      where: {
+        id: data.invoiceId,
+        ...(userId ? { userId } : {}),
+      },
       include: {
         payments: {
           where: { status: "SUCCEEDED" },
@@ -224,7 +234,6 @@ export async function recordPayment(data: CreatePaymentInput) {
       );
     }
 
-    // 2. Compute current settled payments and remaining balance
     const existingPaid = invoice.payments.reduce(
       (sum, p) => sum.plus(p.amount),
       new Decimal(0)
@@ -235,7 +244,6 @@ export async function recordPayment(data: CreatePaymentInput) {
       throw new Error("This invoice has already been fully paid.");
     }
 
-    // 3. Overpayment prevention rule
     if (data.status === "SUCCEEDED" && paymentAmount.greaterThan(remainingBalance)) {
       throw new Error(
         `Overpayment rejected. The remaining balance for invoice #${invoice.invoiceNumber} is $${remainingBalance.toFixed(
@@ -244,7 +252,6 @@ export async function recordPayment(data: CreatePaymentInput) {
       );
     }
 
-    // 4. Format masked description
     let paymentMethodLabel: string = data.paymentMethod;
     if (data.paymentMethod === "CARD") {
       paymentMethodLabel = data.maskedDetails || "Card (•••• 4242)";
@@ -265,9 +272,9 @@ export async function recordPayment(data: CreatePaymentInput) {
           : new Date()
         : null;
 
-    // 5. Create Payment Record
     const payment = await tx.payment.create({
       data: {
+        userId: userId || null,
         invoiceId: invoice.id,
         customerId: invoice.customerId,
         amount: paymentAmount,
@@ -283,7 +290,6 @@ export async function recordPayment(data: CreatePaymentInput) {
       },
     });
 
-    // 6. Update Invoice Status if SUCCEEDED payment completes the balance
     if (data.status === "SUCCEEDED") {
       const newTotalPaid = existingPaid.plus(paymentAmount);
       if (newTotalPaid.greaterThanOrEqualTo(invoice.total)) {
@@ -299,16 +305,19 @@ export async function recordPayment(data: CreatePaymentInput) {
 }
 
 /**
- * Update payment status (e.g., PENDING -> SUCCEEDED or FAILED).
- * Keeps invoice status consistent within a transaction.
+ * Update payment status scoped by tenant.
  */
 export async function updatePaymentStatus(
   id: string,
-  data: UpdatePaymentStatusInput
+  data: UpdatePaymentStatusInput,
+  userId?: string | null
 ) {
   return await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.findUnique({
-      where: { id },
+    const payment = await tx.payment.findFirst({
+      where: {
+        id,
+        ...(userId ? { userId } : {}),
+      },
       include: {
         invoice: {
           include: {
@@ -336,7 +345,6 @@ export async function updatePaymentStatus(
       },
     });
 
-    // Recompute total succeeded payments for the invoice
     const allSucceeded = payment.invoice.payments
       .filter((p) => (p.id === id ? data.status === "SUCCEEDED" : p.status === "SUCCEEDED"))
       .reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
@@ -349,7 +357,6 @@ export async function updatePaymentStatus(
         data: { status: "PAID" },
       });
     } else {
-      // If invoice was PAID and payment was reverted to FAILED or PENDING, adjust status
       const isOverdue = payment.invoice.dueDate < new Date();
       await tx.invoice.update({
         where: { id: payment.invoiceId },

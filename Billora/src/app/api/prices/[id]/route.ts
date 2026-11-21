@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updatePrice, deletePrice } from "@/services/price.service";
 import { updatePriceSchema } from "@/lib/validations/product";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -18,7 +19,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { status: 400 }
       );
     }
-    const updated = await updatePrice(id, parsed.data);
+    const userId = await getSessionUserId();
+    const updated = await updatePrice(id, parsed.data, userId);
     return NextResponse.json(updated);
   } catch (error: any) {
     const isNotFound = error.message?.includes("not found");
@@ -32,7 +34,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    await deletePrice(id);
+    const userId = await getSessionUserId();
+    await deletePrice(id, userId);
     return NextResponse.json({ message: "Price deleted successfully." });
   } catch (error: any) {
     const isNotFound = error.message?.includes("not found");

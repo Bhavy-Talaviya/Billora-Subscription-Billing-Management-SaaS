@@ -7,7 +7,6 @@ import {
   endOfMonth,
   format,
   eachMonthOfInterval,
-  isBefore,
   addDays,
 } from "date-fns";
 
@@ -32,25 +31,17 @@ export function getStartDateFromRange(range: DateRangeFilter = "30d"): Date {
 }
 
 /**
- * KPI Calculations using live PostgreSQL / Prisma records:
- * 1. Total Customers: count of Customer records.
- * 2. Total Active Subscriptions: count of Subscriptions where status == 'ACTIVE'.
- * 3. MRR (Monthly Recurring Revenue):
- *    - For each ACTIVE subscription:
- *      - If price.billingInterval == 'MONTHLY', add amount.
- *      - If price.billingInterval == 'YEARLY', add amount / 12.
- *      - If ONE_TIME, excluded.
- * 4. ARR (Annual Recurring Revenue): MRR * 12.
- * 5. Total Payments Received: sum of SUCCEEDED Payment records.
- * 6. Churn Rate:
- *    - Cancelled subscriptions in period / (Active subscriptions at start + new active).
- * 7. Upcoming Renewals: count of ACTIVE subscriptions with nextBillingDate within the next 30 days.
- * 8. Pending Invoices: count of invoices with status != 'PAID'.
+ * KPI Calculations scoped by tenant (userId) using live PostgreSQL records:
  */
-export async function getDashboardStats(range: DateRangeFilter = "30d") {
+export async function getDashboardStats(
+  range: DateRangeFilter = "30d",
+  userId?: string | null
+) {
   const startDate = getStartDateFromRange(range);
   const now = new Date();
   const next30Days = addDays(now, 30);
+
+  const userFilter = userId ? { userId } : {};
 
   const [
     totalCustomers,
@@ -61,23 +52,36 @@ export async function getDashboardStats(range: DateRangeFilter = "30d") {
     upcomingRenewalsCount,
     recentCancelledCount,
   ] = await Promise.all([
-    prisma.customer.count(),
+    prisma.customer.count({
+      where: userFilter,
+    }),
     prisma.subscription.findMany({
-      where: { status: "ACTIVE" },
+      where: {
+        ...userFilter,
+        status: "ACTIVE",
+      },
       include: { price: true },
     }),
     prisma.subscription.findMany({
+      where: userFilter,
       select: { id: true, status: true, createdAt: true, cancelledAt: true },
     }),
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { status: "SUCCEEDED" },
+      where: {
+        ...userFilter,
+        status: "SUCCEEDED",
+      },
     }),
     prisma.invoice.count({
-      where: { status: { in: ["PENDING", "OVERDUE", "DRAFT"] } },
+      where: {
+        ...userFilter,
+        status: { in: ["PENDING", "OVERDUE", "DRAFT"] },
+      },
     }),
     prisma.subscription.count({
       where: {
+        ...userFilter,
         status: "ACTIVE",
         nextBillingDate: {
           gte: now,
@@ -87,6 +91,7 @@ export async function getDashboardStats(range: DateRangeFilter = "30d") {
     }),
     prisma.subscription.count({
       where: {
+        ...userFilter,
         status: "CANCELLED",
         cancelledAt: { gte: startDate },
       },
@@ -108,7 +113,6 @@ export async function getDashboardStats(range: DateRangeFilter = "30d") {
   const arr = mrr.times(12);
 
   // Compute Churn Rate (%)
-  // Formula: (Cancelled in period) / (Active at start or current population)
   const activeCount = activeSubscriptions.length;
   const denominator = activeCount + recentCancelledCount;
   const churnRate =
@@ -131,11 +135,15 @@ export async function getDashboardStats(range: DateRangeFilter = "30d") {
 }
 
 /**
- * Generates monthly revenue and MRR growth series based on actual payments and subscriptions.
+ * Generates monthly revenue and MRR growth series scoped by tenant (userId).
  */
-export async function getRevenueAnalytics(range: DateRangeFilter = "6m") {
+export async function getRevenueAnalytics(
+  range: DateRangeFilter = "6m",
+  userId?: string | null
+) {
   const startDate = getStartDateFromRange(range);
   const now = new Date();
+  const userFilter = userId ? { userId } : {};
 
   // Create monthly buckets
   const months = eachMonthOfInterval({ start: startDate, end: now });
@@ -143,17 +151,24 @@ export async function getRevenueAnalytics(range: DateRangeFilter = "6m") {
   const [payments, subscriptions, customers] = await Promise.all([
     prisma.payment.findMany({
       where: {
+        ...userFilter,
         status: "SUCCEEDED",
         createdAt: { gte: startDate },
       },
       select: { amount: true, createdAt: true },
     }),
     prisma.subscription.findMany({
-      where: { createdAt: { gte: startDate } },
+      where: {
+        ...userFilter,
+        createdAt: { gte: startDate },
+      },
       include: { price: true },
     }),
     prisma.customer.findMany({
-      where: { createdAt: { gte: startDate } },
+      where: {
+        ...userFilter,
+        createdAt: { gte: startDate },
+      },
       select: { createdAt: true },
     }),
   ]);
@@ -199,16 +214,20 @@ export async function getRevenueAnalytics(range: DateRangeFilter = "6m") {
 }
 
 /**
- * Distribution of subscription and payment statuses.
+ * Distribution of subscription and payment statuses scoped by tenant (userId).
  */
-export async function getSubscriptionDistribution() {
+export async function getSubscriptionDistribution(userId?: string | null) {
+  const userFilter = userId ? { userId } : {};
+
   const [subCounts, pmtCounts] = await Promise.all([
     prisma.subscription.groupBy({
       by: ["status"],
+      where: userFilter,
       _count: { status: true },
     }),
     prisma.payment.groupBy({
       by: ["status"],
+      where: userFilter,
       _count: { status: true },
     }),
   ]);
@@ -248,11 +267,12 @@ export async function getSubscriptionDistribution() {
 }
 
 /**
- * Returns recent activity records across customers, subscriptions, payments, and upcoming renewals.
+ * Returns recent activity records across customers, subscriptions, payments, and upcoming renewals scoped by tenant (userId).
  */
-export async function getDashboardActivity() {
+export async function getDashboardActivity(userId?: string | null) {
   const now = new Date();
   const next30Days = addDays(now, 30);
+  const userFilter = userId ? { userId } : {};
 
   const [
     recentCustomers,
@@ -262,6 +282,7 @@ export async function getDashboardActivity() {
     upcomingRenewals,
   ] = await Promise.all([
     prisma.customer.findMany({
+      where: userFilter,
       take: 5,
       orderBy: { createdAt: "desc" },
       select: {
@@ -273,6 +294,7 @@ export async function getDashboardActivity() {
       },
     }),
     prisma.subscription.findMany({
+      where: userFilter,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {
@@ -281,6 +303,7 @@ export async function getDashboardActivity() {
       },
     }),
     prisma.payment.findMany({
+      where: userFilter,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: {
@@ -289,6 +312,7 @@ export async function getDashboardActivity() {
       },
     }),
     prisma.invoice.findMany({
+      where: userFilter,
       take: 5,
       orderBy: { issueDate: "desc" },
       include: {
@@ -297,6 +321,7 @@ export async function getDashboardActivity() {
     }),
     prisma.subscription.findMany({
       where: {
+        ...userFilter,
         status: "ACTIVE",
         nextBillingDate: {
           gte: now,

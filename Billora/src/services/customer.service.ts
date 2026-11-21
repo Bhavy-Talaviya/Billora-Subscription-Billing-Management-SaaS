@@ -11,7 +11,10 @@ export interface GetCustomersParams {
   sortOrder?: "asc" | "desc";
 }
 
-export async function getCustomers(params: GetCustomersParams = {}) {
+export async function getCustomers(
+  params: GetCustomersParams = {},
+  userId?: string | null
+) {
   const {
     search = "",
     page = 1,
@@ -23,15 +26,22 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 
   const skip = (page - 1) * limit;
 
-  const where: Prisma.CustomerWhereInput = {};
+  const where: Prisma.CustomerWhereInput = {
+    ...(userId ? { userId } : {}),
+  };
 
   if (search.trim()) {
     const s = search.trim();
-    where.OR = [
-      { name: { contains: s, mode: "insensitive" } },
-      { email: { contains: s, mode: "insensitive" } },
-      { company: { contains: s, mode: "insensitive" } },
-      { phone: { contains: s, mode: "insensitive" } },
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      {
+        OR: [
+          { name: { contains: s, mode: "insensitive" } },
+          { email: { contains: s, mode: "insensitive" } },
+          { company: { contains: s, mode: "insensitive" } },
+          { phone: { contains: s, mode: "insensitive" } },
+        ],
+      },
     ];
   }
 
@@ -67,9 +77,12 @@ export async function getCustomers(params: GetCustomersParams = {}) {
   };
 }
 
-export async function getCustomerById(id: string) {
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+export async function getCustomerById(id: string, userId?: string | null) {
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       subscriptions: {
         orderBy: { createdAt: "desc" },
@@ -132,9 +145,15 @@ export async function getCustomerById(id: string) {
   };
 }
 
-export async function createCustomer(data: CustomerInput) {
-  const existing = await prisma.customer.findUnique({
-    where: { email: data.email },
+export async function createCustomer(
+  data: CustomerInput,
+  userId?: string | null
+) {
+  const existing = await prisma.customer.findFirst({
+    where: {
+      email: data.email,
+      ...(userId ? { userId } : {}),
+    },
   });
 
   if (existing) {
@@ -143,6 +162,7 @@ export async function createCustomer(data: CustomerInput) {
 
   return prisma.customer.create({
     data: {
+      userId: userId || null,
       name: data.name,
       email: data.email,
       phone: data.phone || null,
@@ -166,16 +186,28 @@ export async function createCustomer(data: CustomerInput) {
   });
 }
 
-export async function updateCustomer(id: string, data: UpdateCustomerInput) {
-  const existing = await prisma.customer.findUnique({ where: { id } });
+export async function updateCustomer(
+  id: string,
+  data: UpdateCustomerInput,
+  userId?: string | null
+) {
+  const existing = await prisma.customer.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
+  });
 
   if (!existing) {
     throw new Error("Customer not found.");
   }
 
   if (data.email && data.email !== existing.email) {
-    const emailInUse = await prisma.customer.findUnique({
-      where: { email: data.email },
+    const emailInUse = await prisma.customer.findFirst({
+      where: {
+        email: data.email,
+        ...(userId ? { userId } : {}),
+      },
     });
     if (emailInUse) {
       throw new Error("A customer with this email address already exists.");
@@ -204,17 +236,12 @@ export async function updateCustomer(id: string, data: UpdateCustomerInput) {
   });
 }
 
-/**
- * SAFE DELETION POLICY
- * Customers with any financial history (active/paused subscriptions,
- * paid/pending/overdue invoices, or succeeded/pending payments) CANNOT
- * be hard-deleted. This preserves ledger integrity and audit trails.
- * Only customers with zero financial records (e.g. draft-only or test profiles)
- * can be permanently removed.
- */
-export async function deleteCustomer(id: string) {
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+export async function deleteCustomer(id: string, userId?: string | null) {
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       subscriptions: {
         where: { status: { in: ["ACTIVE", "PAUSED", "PAST_DUE"] } },

@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSubscriptionDistribution } from "@/services/dashboard.service";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET() {
   try {
-    const distribution = await getSubscriptionDistribution();
-    return NextResponse.json(distribution);
+    const userId = await getSessionUserId();
+    const data = await getSubscriptionDistribution(userId);
+    return NextResponse.json(data);
   } catch (error: any) {
     console.error("[GET /api/dashboard/subscriptions]", error);
     return NextResponse.json(

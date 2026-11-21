@@ -9,16 +9,26 @@ export interface GetProductsParams {
   limit?: number;
 }
 
-export async function getProducts(params: GetProductsParams = {}) {
+export async function getProducts(
+  params: GetProductsParams = {},
+  userId?: string | null
+) {
   const { search = "", page = 1, limit = 20, active } = params;
   const skip = (page - 1) * limit;
 
-  const where: Prisma.ProductWhereInput = {};
+  const where: Prisma.ProductWhereInput = {
+    ...(userId ? { userId } : {}),
+  };
 
   if (search.trim()) {
-    where.OR = [
-      { name: { contains: search.trim(), mode: "insensitive" } },
-      { description: { contains: search.trim(), mode: "insensitive" } },
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      {
+        OR: [
+          { name: { contains: search.trim(), mode: "insensitive" } },
+          { description: { contains: search.trim(), mode: "insensitive" } },
+        ],
+      },
     ];
   }
 
@@ -48,9 +58,12 @@ export async function getProducts(params: GetProductsParams = {}) {
   return { products, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-export async function getProductById(id: string) {
-  const product = await prisma.product.findUnique({
-    where: { id },
+export async function getProductById(id: string, userId?: string | null) {
+  const product = await prisma.product.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       prices: {
         orderBy: { createdAt: "asc" },
@@ -64,9 +77,13 @@ export async function getProductById(id: string) {
   return product;
 }
 
-export async function createProduct(data: ProductInput) {
+export async function createProduct(
+  data: ProductInput,
+  userId?: string | null
+) {
   return prisma.product.create({
     data: {
+      userId: userId || null,
       name: data.name,
       description: data.description || null,
       active: data.active ?? true,
@@ -78,8 +95,17 @@ export async function createProduct(data: ProductInput) {
   });
 }
 
-export async function updateProduct(id: string, data: UpdateProductInput) {
-  const existing = await prisma.product.findUnique({ where: { id } });
+export async function updateProduct(
+  id: string,
+  data: UpdateProductInput,
+  userId?: string | null
+) {
+  const existing = await prisma.product.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
+  });
   if (!existing) throw new Error("Product not found.");
 
   return prisma.product.update({
@@ -96,14 +122,12 @@ export async function updateProduct(id: string, data: UpdateProductInput) {
   });
 }
 
-/**
- * SAFE DELETE POLICY FOR PRODUCTS:
- * A product cannot be deleted if any of its prices are linked to subscriptions.
- * Deactivate the product instead to hide it from new subscriptions.
- */
-export async function deleteProduct(id: string) {
-  const product = await prisma.product.findUnique({
-    where: { id },
+export async function deleteProduct(id: string, userId?: string | null) {
+  const product = await prisma.product.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       prices: {
         include: {

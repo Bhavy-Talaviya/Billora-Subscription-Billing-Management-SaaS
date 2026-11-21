@@ -31,7 +31,6 @@ export function calculateNextBilling(
     case "YEARLY":
       return addYears(fromDate, 1);
     case "ONE_TIME":
-      // For one-time purchases, there is no recurring renewal period
       return addYears(fromDate, 100);
     default:
       return addMonths(fromDate, 1);
@@ -39,9 +38,12 @@ export function calculateNextBilling(
 }
 
 /**
- * List subscriptions with optional filters, search, pagination, and renewal counts.
+ * List subscriptions scoped by tenant (userId).
  */
-export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
+export async function getSubscriptions(
+  params: GetSubscriptionsParams = {},
+  userId?: string | null
+) {
   const {
     search = "",
     status,
@@ -54,7 +56,9 @@ export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
   } = params;
   const skip = (page - 1) * limit;
 
-  const where: Prisma.SubscriptionWhereInput = {};
+  const where: Prisma.SubscriptionWhereInput = {
+    ...(userId ? { userId } : {}),
+  };
 
   if (status && status !== "all") {
     where.status = status as SubscriptionStatus;
@@ -87,11 +91,16 @@ export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
 
   if (search.trim()) {
     const s = search.trim();
-    where.OR = [
-      { customer: { name: { contains: s, mode: "insensitive" } } },
-      { customer: { email: { contains: s, mode: "insensitive" } } },
-      { customer: { company: { contains: s, mode: "insensitive" } } },
-      { price: { product: { name: { contains: s, mode: "insensitive" } } } },
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      {
+        OR: [
+          { customer: { name: { contains: s, mode: "insensitive" } } },
+          { customer: { email: { contains: s, mode: "insensitive" } } },
+          { customer: { company: { contains: s, mode: "insensitive" } } },
+          { price: { product: { name: { contains: s, mode: "insensitive" } } } },
+        ],
+      },
     ];
   }
 
@@ -103,28 +112,10 @@ export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            company: true,
-          },
-        },
+        customer: true,
         price: {
           include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: {
-            invoices: true,
+            product: true,
           },
         },
       },
@@ -141,11 +132,14 @@ export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
 }
 
 /**
- * Get detailed subscription record including invoices and pricing details.
+ * Get detailed subscription record including invoices and pricing details scoped by tenant.
  */
-export async function getSubscriptionById(id: string) {
-  const subscription = await prisma.subscription.findUnique({
-    where: { id },
+export async function getSubscriptionById(id: string, userId?: string | null) {
+  const subscription = await prisma.subscription.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       customer: true,
       price: {
@@ -169,11 +163,17 @@ export async function getSubscriptionById(id: string) {
 }
 
 /**
- * Create a new subscription and generate its initial invoice simulation.
+ * Create a new subscription scoped by tenant (userId).
  */
-export async function createSubscription(data: CreateSubscriptionInput) {
-  const customer = await prisma.customer.findUnique({
-    where: { id: data.customerId },
+export async function createSubscription(
+  data: CreateSubscriptionInput,
+  userId?: string | null
+) {
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id: data.customerId,
+      ...(userId ? { userId } : {}),
+    },
   });
   if (!customer) throw new Error("Customer not found.");
 
@@ -191,7 +191,6 @@ export async function createSubscription(data: CreateSubscriptionInput) {
     ? new Date(data.firstBillingDate)
     : startDate;
 
-  // Next billing date calculation
   const nextBillingDate =
     price.billingInterval === "ONE_TIME"
       ? null
@@ -203,10 +202,10 @@ export async function createSubscription(data: CreateSubscriptionInput) {
       ? addYears(startDate, 100)
       : calculateNextBilling(startDate, price.billingInterval);
 
-  // Execute in transaction to safely create subscription and initial draft/pending invoice
   return await prisma.$transaction(async (tx) => {
     const subscription = await tx.subscription.create({
       data: {
+        userId: userId || null,
         customerId: data.customerId,
         priceId: data.priceId,
         status: "ACTIVE",
@@ -223,13 +222,13 @@ export async function createSubscription(data: CreateSubscriptionInput) {
       },
     });
 
-    // Generate initial invoice for subscription ledger
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-01`;
     const subtotal = price.amount;
-    const total = subtotal; // No initial discount/tax in base
+    const total = subtotal;
 
     await tx.invoice.create({
       data: {
+        userId: userId || null,
         customerId: data.customerId,
         subscriptionId: subscription.id,
         invoiceNumber,
@@ -251,9 +250,10 @@ export async function createSubscription(data: CreateSubscriptionInput) {
         },
         payments: {
           create: {
+            userId: userId || null,
             customerId: data.customerId,
             amount: total,
-            paymentMethod: "CREDIT_CARD",
+            paymentMethod: "CARD",
             status: "SUCCEEDED",
             transactionReference: `TX-${Date.now().toString().slice(-8)}`,
             paidAt: firstBilling,
@@ -267,13 +267,14 @@ export async function createSubscription(data: CreateSubscriptionInput) {
 }
 
 /**
- * Pause subscription:
- * Sets status to PAUSED and records pausedAt timestamp.
- * Paused subscriptions are excluded from renewal cycles.
+ * Pause subscription scoped by tenant.
  */
-export async function pauseSubscription(id: string) {
-  const existing = await prisma.subscription.findUnique({
-    where: { id },
+export async function pauseSubscription(id: string, userId?: string | null) {
+  const existing = await prisma.subscription.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
   });
 
   if (!existing) throw new Error("Subscription not found.");
@@ -298,13 +299,14 @@ export async function pauseSubscription(id: string) {
 }
 
 /**
- * Resume subscription:
- * Resumes a PAUSED subscription back to ACTIVE.
- * Recomputes the next billing date based on remaining period.
+ * Resume subscription scoped by tenant.
  */
-export async function resumeSubscription(id: string) {
-  const existing = await prisma.subscription.findUnique({
-    where: { id },
+export async function resumeSubscription(id: string, userId?: string | null) {
+  const existing = await prisma.subscription.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: { price: true },
   });
 
@@ -338,13 +340,14 @@ export async function resumeSubscription(id: string) {
 }
 
 /**
- * Cancel subscription:
- * Sets status to CANCELLED and records cancelledAt timestamp.
- * Cancelled subscriptions can never be renewed.
+ * Cancel subscription scoped by tenant.
  */
-export async function cancelSubscription(id: string) {
-  const existing = await prisma.subscription.findUnique({
-    where: { id },
+export async function cancelSubscription(id: string, userId?: string | null) {
+  const existing = await prisma.subscription.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
   });
 
   if (!existing) throw new Error("Subscription not found.");
@@ -368,19 +371,18 @@ export async function cancelSubscription(id: string) {
 }
 
 /**
- * Upgrade or Downgrade subscription (Plan Change):
- * Business rule:
- * - Updates the selected price to the new plan.
- * - Records activity timestamp.
- * - Does NOT alter historical invoices.
- * - Recalculates nextBillingDate and currentPeriodEnd.
+ * Upgrade or Downgrade subscription scoped by tenant.
  */
 export async function changeSubscriptionPlan(
   id: string,
-  data: ChangePlanInput
+  data: ChangePlanInput,
+  userId?: string | null
 ) {
-  const existing = await prisma.subscription.findUnique({
-    where: { id },
+  const existing = await prisma.subscription.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: { price: { include: { product: true } } },
   });
 
@@ -428,11 +430,11 @@ export async function changeSubscriptionPlan(
       },
     });
 
-    // Create a new invoice record reflecting the plan change if effective immediately
     if (data.effectivePolicy === "IMMEDIATE") {
       const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-CHG`;
       await tx.invoice.create({
         data: {
+          userId: userId || null,
           customerId: existing.customerId,
           subscriptionId: existing.id,
           invoiceNumber,
@@ -454,9 +456,10 @@ export async function changeSubscriptionPlan(
           },
           payments: {
             create: {
+              userId: userId || null,
               customerId: existing.customerId,
               amount: newPrice.amount,
-              paymentMethod: "CREDIT_CARD",
+              paymentMethod: "CARD",
               status: "SUCCEEDED",
               transactionReference: `TX-${Date.now().toString().slice(-8)}`,
               paidAt: now,
@@ -471,15 +474,14 @@ export async function changeSubscriptionPlan(
 }
 
 /**
- * Renew subscription (Simulated Renewal):
- * Business rule:
- * - ACTIVE subscriptions can be renewed.
- * - Generates new renewal invoice.
- * - Advances nextBillingDate.
+ * Renew subscription scoped by tenant.
  */
-export async function renewSubscription(id: string) {
-  const sub = await prisma.subscription.findUnique({
-    where: { id },
+export async function renewSubscription(id: string, userId?: string | null) {
+  const sub = await prisma.subscription.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       price: { include: { product: true } },
       customer: true,
@@ -517,6 +519,7 @@ export async function renewSubscription(id: string) {
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-REN`;
     await tx.invoice.create({
       data: {
+        userId: userId || null,
         customerId: sub.customerId,
         subscriptionId: sub.id,
         invoiceNumber,
@@ -538,9 +541,10 @@ export async function renewSubscription(id: string) {
         },
         payments: {
           create: {
+            userId: userId || null,
             customerId: sub.customerId,
             amount: sub.price.amount,
-            paymentMethod: "CREDIT_CARD",
+            paymentMethod: "CARD",
             status: "SUCCEEDED",
             transactionReference: `TX-${Date.now().toString().slice(-8)}`,
             paidAt: now,

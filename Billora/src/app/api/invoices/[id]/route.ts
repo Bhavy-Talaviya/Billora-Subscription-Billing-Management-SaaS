@@ -5,6 +5,7 @@ import {
   deleteInvoice,
 } from "@/services/invoice.service";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -13,7 +14,8 @@ interface RouteParams {
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const invoice = await getInvoiceById(id);
+    const userId = await getSessionUserId();
+    const invoice = await getInvoiceById(id, userId);
     if (!invoice) {
       return NextResponse.json(
         { error: "Invoice not found." },
@@ -44,7 +46,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const updated = await updateInvoice(id, parsed.data);
+    const userId = await getSessionUserId();
+    const updated = await updateInvoice(id, parsed.data, userId);
     return NextResponse.json(updated);
   } catch (error: any) {
     return NextResponse.json(
@@ -57,11 +60,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    await deleteInvoice(id);
+    const userId = await getSessionUserId();
+    await deleteInvoice(id, userId);
     return NextResponse.json({ message: "Invoice deleted successfully." });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message ?? "Failed to delete invoice" },
+      { error: error.message ?? "Server error" },
       { status: 400 }
     );
   }

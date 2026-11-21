@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSubscriptionById } from "@/services/subscription.service";
 import prisma from "@/lib/prisma";
 import { updateSubscriptionSchema } from "@/lib/validations/subscription";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,7 +11,8 @@ interface RouteParams {
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const subscription = await getSubscriptionById(id);
+    const userId = await getSessionUserId();
+    const subscription = await getSubscriptionById(id, userId);
     if (!subscription) {
       return NextResponse.json(
         { error: "Subscription not found." },
@@ -29,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const userId = await getSessionUserId();
     const body = await req.json();
     const parsed = updateSubscriptionSchema.safeParse(body);
     if (!parsed.success) {
@@ -41,6 +44,20 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const existing = await prisma.subscription.findFirst({
+      where: {
+        id,
+        ...(userId ? { userId } : {}),
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Subscription not found." },
+        { status: 404 }
+      );
+    }
+
     const updated = await prisma.subscription.update({
       where: { id },
       data: {
@@ -49,9 +66,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           nextBillingDate: parsed.data.nextBillingDate
             ? new Date(parsed.data.nextBillingDate)
             : null,
-        }),
-        ...(parsed.data.currentPeriodEnd && {
-          currentPeriodEnd: new Date(parsed.data.currentPeriodEnd),
         }),
       },
       include: {

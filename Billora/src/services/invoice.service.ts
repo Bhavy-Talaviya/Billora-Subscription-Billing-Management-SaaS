@@ -19,7 +19,7 @@ export interface GetInvoicesParams {
 /**
  * Automatically update overdue status for pending invoices where dueDate < now.
  */
-export async function syncOverdueInvoices() {
+export async function syncOverdueInvoices(userId?: string | null) {
   const now = new Date();
   await prisma.invoice.updateMany({
     where: {
@@ -27,6 +27,7 @@ export async function syncOverdueInvoices() {
       dueDate: {
         lt: now,
       },
+      ...(userId ? { userId } : {}),
     },
     data: {
       status: "OVERDUE",
@@ -35,11 +36,13 @@ export async function syncOverdueInvoices() {
 }
 
 /**
- * List invoices with filters, search, pagination, and customer associations.
+ * List invoices with filters, search, pagination, and customer associations scoped by tenant (userId).
  */
-export async function getInvoices(params: GetInvoicesParams = {}) {
-  // Sync overdue status before listing
-  await syncOverdueInvoices();
+export async function getInvoices(
+  params: GetInvoicesParams = {},
+  userId?: string | null
+) {
+  await syncOverdueInvoices(userId);
 
   const {
     search = "",
@@ -52,7 +55,9 @@ export async function getInvoices(params: GetInvoicesParams = {}) {
   } = params;
   const skip = (page - 1) * limit;
 
-  const where: Prisma.InvoiceWhereInput = {};
+  const where: Prisma.InvoiceWhereInput = {
+    ...(userId ? { userId } : {}),
+  };
 
   if (status && status !== "all") {
     where.status = status as InvoiceStatus;
@@ -74,11 +79,16 @@ export async function getInvoices(params: GetInvoicesParams = {}) {
 
   if (search.trim()) {
     const s = search.trim();
-    where.OR = [
-      { invoiceNumber: { contains: s, mode: "insensitive" } },
-      { customer: { name: { contains: s, mode: "insensitive" } } },
-      { customer: { email: { contains: s, mode: "insensitive" } } },
-      { customer: { company: { contains: s, mode: "insensitive" } } },
+    where.AND = [
+      ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+      {
+        OR: [
+          { invoiceNumber: { contains: s, mode: "insensitive" } },
+          { customer: { name: { contains: s, mode: "insensitive" } } },
+          { customer: { email: { contains: s, mode: "insensitive" } } },
+          { customer: { company: { contains: s, mode: "insensitive" } } },
+        ],
+      },
     ];
   }
 
@@ -99,16 +109,9 @@ export async function getInvoices(params: GetInvoicesParams = {}) {
           },
         },
         items: true,
-        payments: true,
-        subscription: {
-          select: {
-            id: true,
-            price: {
-              include: {
-                product: true,
-              },
-            },
-          },
+        payments: {
+          where: { status: "SUCCEEDED" },
+          select: { amount: true },
         },
       },
     }),
@@ -124,14 +127,16 @@ export async function getInvoices(params: GetInvoicesParams = {}) {
 }
 
 /**
- * Retrieve invoice by ID including line items, payments, customer, and subscription.
+ * Get detailed invoice record including line items, customer, and payments scoped by tenant.
  */
-export async function getInvoiceById(id: string) {
-  // Sync overdue status
-  await syncOverdueInvoices();
+export async function getInvoiceById(id: string, userId?: string | null) {
+  await syncOverdueInvoices(userId);
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
+  const invoice = await prisma.invoice.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: {
       customer: true,
       subscription: {
@@ -161,7 +166,6 @@ export async function generateInvoiceNumber(): Promise<string> {
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
   let invoiceNumber = `INV-${dateStr}-${randomSuffix}`;
 
-  // Ensure uniqueness
   let exists = await prisma.invoice.findUnique({ where: { invoiceNumber } });
   while (exists) {
     const newSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -173,19 +177,22 @@ export async function generateInvoiceNumber(): Promise<string> {
 }
 
 /**
- * Create invoice with line items using decimal calculation logic:
- * Subtotal = sum of (quantity * unitPrice)
- * Total = subtotal - discount + tax
+ * Create invoice with line items scoped by tenant (userId).
  */
-export async function createInvoice(data: CreateInvoiceInput) {
-  const customer = await prisma.customer.findUnique({
-    where: { id: data.customerId },
+export async function createInvoice(
+  data: CreateInvoiceInput,
+  userId?: string | null
+) {
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id: data.customerId,
+      ...(userId ? { userId } : {}),
+    },
   });
   if (!customer) throw new Error("Customer not found.");
 
   const invoiceNumber = data.invoiceNumber || (await generateInvoiceNumber());
 
-  // Existing check
   const duplicate = await prisma.invoice.findUnique({
     where: { invoiceNumber },
   });
@@ -193,7 +200,6 @@ export async function createInvoice(data: CreateInvoiceInput) {
     throw new Error(`Invoice number "${invoiceNumber}" already exists.`);
   }
 
-  // Calculate Subtotal with Decimal precision
   let subtotal = new Decimal(0);
   const itemsToCreate = data.items.map((item) => {
     const qty = new Decimal(item.quantity);
@@ -221,7 +227,6 @@ export async function createInvoice(data: CreateInvoiceInput) {
   const issueDate = data.issueDate ? new Date(data.issueDate) : new Date();
   const dueDate = new Date(data.dueDate);
 
-  // Derive initial status
   let finalStatus: InvoiceStatus = data.status || "PENDING";
   if (finalStatus === "PENDING" && dueDate < new Date()) {
     finalStatus = "OVERDUE";
@@ -230,6 +235,7 @@ export async function createInvoice(data: CreateInvoiceInput) {
   return await prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.create({
       data: {
+        userId: userId || null,
         customerId: data.customerId,
         subscriptionId: data.subscriptionId || null,
         invoiceNumber,
@@ -252,10 +258,10 @@ export async function createInvoice(data: CreateInvoiceInput) {
       },
     });
 
-    // If marked as PAID right away, record payment simulation
     if (finalStatus === "PAID") {
       await tx.payment.create({
         data: {
+          userId: userId || null,
           invoiceId: invoice.id,
           customerId: data.customerId,
           amount: total,
@@ -272,13 +278,18 @@ export async function createInvoice(data: CreateInvoiceInput) {
 }
 
 /**
- * Edit Draft / Pending Invoice:
- * Only DRAFT or PENDING invoices can be updated.
- * Recalculates subtotal and total accurately.
+ * Edit Draft / Pending Invoice scoped by tenant.
  */
-export async function updateInvoice(id: string, data: UpdateInvoiceInput) {
-  const existing = await prisma.invoice.findUnique({
-    where: { id },
+export async function updateInvoice(
+  id: string,
+  data: UpdateInvoiceInput,
+  userId?: string | null
+) {
+  const existing = await prisma.invoice.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: { items: true },
   });
 
@@ -344,10 +355,10 @@ export async function updateInvoice(id: string, data: UpdateInvoiceInput) {
       },
     });
 
-    // If transitioned to PAID, record payment
     if (data.status === "PAID" && existing.status !== "PAID") {
       await tx.payment.create({
         data: {
+          userId: userId || null,
           invoiceId: updated.id,
           customerId: updated.customerId,
           amount: total,
@@ -364,13 +375,14 @@ export async function updateInvoice(id: string, data: UpdateInvoiceInput) {
 }
 
 /**
- * Delete Invoice:
- * Safe Policy: Only DRAFT invoices can be deleted.
- * Invoices that are PENDING, OVERDUE, or PAID cannot be deleted to preserve financial audit history.
+ * Delete Invoice scoped by tenant.
  */
-export async function deleteInvoice(id: string) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
+export async function deleteInvoice(id: string, userId?: string | null) {
+  const invoice = await prisma.invoice.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
     include: { payments: true },
   });
 
@@ -391,4 +403,44 @@ export async function deleteInvoice(id: string) {
   return await prisma.invoice.delete({
     where: { id },
   });
+}
+
+/**
+ * Calculate invoice live balance scoped by tenant.
+ */
+export async function getInvoiceBalance(id: string, userId?: string | null) {
+  const invoice = await prisma.invoice.findFirst({
+    where: {
+      id,
+      ...(userId ? { userId } : {}),
+    },
+    include: {
+      customer: { select: { id: true, name: true, email: true } },
+      payments: {
+        where: { status: "SUCCEEDED" },
+        select: { amount: true },
+      },
+    },
+  });
+
+  if (!invoice) throw new Error("Invoice not found.");
+
+  const total = Number(invoice.total);
+  const paidAmount = invoice.payments.reduce(
+    (sum, p) => sum + Number(p.amount),
+    0
+  );
+  const remainingBalance = Math.max(0, total - paidAmount);
+  const isFullyPaid = remainingBalance <= 0.001;
+
+  return {
+    invoiceId: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    customer: invoice.customer,
+    total,
+    paidAmount,
+    remainingBalance: Number(remainingBalance.toFixed(2)),
+    isFullyPaid,
+    status: invoice.status,
+  };
 }

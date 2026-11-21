@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrices, createPrice } from "@/services/price.service";
 import { priceSchema } from "@/lib/validations/product";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,7 +11,8 @@ export async function GET(req: NextRequest) {
     const active =
       activeParam === "true" ? true : activeParam === "false" ? false : undefined;
 
-    const prices = await getPrices({ productId, active });
+    const userId = await getSessionUserId();
+    const prices = await getPrices({ productId, active }, userId);
     return NextResponse.json(prices);
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to fetch prices." }, { status: 500 });
@@ -20,7 +22,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    // Coerce amount to number for Zod
     if (body.amount !== undefined) body.amount = Number(body.amount);
     const parsed = priceSchema.safeParse(body);
     if (!parsed.success) {
@@ -29,7 +30,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const price = await createPrice(parsed.data);
+    const userId = await getSessionUserId();
+    const price = await createPrice(parsed.data, userId);
     return NextResponse.json(price, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? "Server error" }, { status: 500 });

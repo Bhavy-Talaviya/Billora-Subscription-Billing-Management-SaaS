@@ -2,10 +2,16 @@ import prisma from "@/lib/prisma";
 import { PriceInput, UpdatePriceInput } from "@/lib/validations/product";
 import { Decimal } from "@prisma/client/runtime/library";
 
-export async function getPrices(params: { productId?: string; active?: boolean } = {}) {
+export async function getPrices(
+  params: { productId?: string; active?: boolean } = {},
+  userId?: string | null
+) {
   const where: any = {};
   if (params.productId) where.productId = params.productId;
   if (params.active !== undefined) where.active = params.active;
+  if (userId) {
+    where.product = { userId };
+  }
 
   return prisma.price.findMany({
     where,
@@ -17,8 +23,13 @@ export async function getPrices(params: { productId?: string; active?: boolean }
   });
 }
 
-export async function createPrice(data: PriceInput) {
-  const product = await prisma.product.findUnique({ where: { id: data.productId } });
+export async function createPrice(data: PriceInput, userId?: string | null) {
+  const product = await prisma.product.findFirst({
+    where: {
+      id: data.productId,
+      ...(userId ? { userId } : {}),
+    },
+  });
   if (!product) throw new Error("Product not found.");
 
   return prisma.price.create({
@@ -36,8 +47,17 @@ export async function createPrice(data: PriceInput) {
   });
 }
 
-export async function updatePrice(id: string, data: UpdatePriceInput) {
-  const existing = await prisma.price.findUnique({ where: { id } });
+export async function updatePrice(
+  id: string,
+  data: UpdatePriceInput,
+  userId?: string | null
+) {
+  const existing = await prisma.price.findFirst({
+    where: {
+      id,
+      ...(userId ? { product: { userId } } : {}),
+    },
+  });
   if (!existing) throw new Error("Price not found.");
 
   return prisma.price.update({
@@ -58,19 +78,24 @@ export async function updatePrice(id: string, data: UpdatePriceInput) {
 /**
  * SAFE DELETE POLICY FOR PRICES:
  * Prices linked to any subscriptions (past or present) cannot be hard-deleted.
- * Deactivate the price instead to prevent new subscriptions while preserving history.
+ * Deactivate the price instead to prevent new subscriptions while preserving audit integrity.
  */
-export async function deletePrice(id: string) {
-  const price = await prisma.price.findUnique({
-    where: { id },
-    include: { _count: { select: { subscriptions: true } } },
+export async function deletePrice(id: string, userId?: string | null) {
+  const price = await prisma.price.findFirst({
+    where: {
+      id,
+      ...(userId ? { product: { userId } } : {}),
+    },
+    include: {
+      _count: { select: { subscriptions: true } },
+    },
   });
 
   if (!price) throw new Error("Price not found.");
 
   if (price._count.subscriptions > 0) {
     throw new Error(
-      `Cannot delete this pricing plan: it is linked to ${price._count.subscriptions} subscription(s). Deactivate it instead to preserve historical billing data.`
+      `Cannot delete this pricing plan: it is currently linked to ${price._count.subscriptions} subscription(s). Deactivate the price instead.`
     );
   }
 

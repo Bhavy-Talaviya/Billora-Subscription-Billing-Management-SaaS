@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updatePaymentStatus } from "@/services/payment.service";
 import { updatePaymentStatusSchema } from "@/lib/validations/payment";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -21,7 +22,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const updated = await updatePaymentStatus(id, parsed.data);
+    const userId = await getSessionUserId();
+    const updated = await updatePaymentStatus(id, parsed.data, userId);
     return NextResponse.json(updated);
   } catch (error: any) {
     return NextResponse.json(

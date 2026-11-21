@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renewSubscription } from "@/services/subscription.service";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -8,7 +9,8 @@ interface RouteParams {
 export async function POST(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const updated = await renewSubscription(id);
+    const userId = await getSessionUserId();
+    const updated = await renewSubscription(id, userId);
     return NextResponse.json(updated);
   } catch (error: any) {
     return NextResponse.json(

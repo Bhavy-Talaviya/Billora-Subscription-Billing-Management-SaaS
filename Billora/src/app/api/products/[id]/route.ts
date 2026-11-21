@@ -5,6 +5,7 @@ import {
   deleteProduct,
 } from "@/services/product.service";
 import { updateProductSchema } from "@/lib/validations/product";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -13,7 +14,8 @@ interface RouteParams {
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const product = await getProductById(id);
+    const userId = await getSessionUserId();
+    const product = await getProductById(id, userId);
     if (!product) {
       return NextResponse.json({ error: "Product not found." }, { status: 404 });
     }
@@ -34,7 +36,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { status: 400 }
       );
     }
-    const updated = await updateProduct(id, parsed.data);
+    const userId = await getSessionUserId();
+    const updated = await updateProduct(id, parsed.data, userId);
     return NextResponse.json(updated);
   } catch (error: any) {
     const isNotFound = error.message?.includes("not found");
@@ -48,7 +51,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    await deleteProduct(id);
+    const userId = await getSessionUserId();
+    await deleteProduct(id, userId);
     return NextResponse.json({ message: "Product deleted successfully." });
   } catch (error: any) {
     const isNotFound = error.message?.includes("not found");

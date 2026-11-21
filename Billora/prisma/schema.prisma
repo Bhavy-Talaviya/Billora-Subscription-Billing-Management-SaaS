@@ -57,6 +57,11 @@ model User {
   updatedAt           DateTime             @updatedAt
 
   passwordResetTokens PasswordResetToken[]
+  customers           Customer[]
+  products            Product[]
+  subscriptions       Subscription[]
+  invoices            Invoice[]
+  payments            Payment[]
 
   @@index([email])
   @@map("users")
@@ -78,8 +83,9 @@ model PasswordResetToken {
 
 model Customer {
   id             String         @id @default(cuid())
+  userId         String?
   name           String
-  email          String         @unique
+  email          String
   phone          String?
   company        String?
   billingAddress String?
@@ -91,24 +97,29 @@ model Customer {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
+  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscriptions  Subscription[]
   invoices       Invoice[]
   payments       Payment[]
 
+  @@index([userId])
   @@index([email])
   @@map("customers")
 }
 
 model Product {
   id          String   @id @default(cuid())
+  userId      String?
   name        String
   description String?
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   prices      Price[]
 
+  @@index([userId])
   @@map("products")
 }
 
@@ -130,6 +141,7 @@ model Price {
 
 model Subscription {
   id                 String             @id @default(cuid())
+  userId             String?
   customerId         String
   priceId            String
   status             SubscriptionStatus @default(ACTIVE)
@@ -142,10 +154,12 @@ model Subscription {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
+  user               User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
   customer           Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
   price              Price              @relation(fields: [priceId], references: [id])
   invoices           Invoice[]
 
+  @@index([userId])
   @@index([customerId])
   @@index([priceId])
   @@index([status])
@@ -154,6 +168,7 @@ model Subscription {
 
 model Invoice {
   id             String        @id @default(cuid())
+  userId         String?
   customerId     String
   subscriptionId String?
   invoiceNumber  String        @unique
@@ -168,11 +183,13 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   items          InvoiceItem[]
   payments       Payment[]
 
+  @@index([userId])
   @@index([customerId])
   @@index([subscriptionId])
   @@index([status])
@@ -196,6 +213,7 @@ model InvoiceItem {
 
 model Payment {
   id                   String        @id @default(cuid())
+  userId               String?
   invoiceId            String
   customerId           String
   amount               Decimal       @db.Decimal(10, 2)
@@ -205,9 +223,11 @@ model Payment {
   paidAt               DateTime?
   createdAt            DateTime      @default(now())
 
+  user                 User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   invoice              Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   customer             Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([invoiceId])
   @@index([customerId])
   @@index([status])

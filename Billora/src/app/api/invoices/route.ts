@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInvoices, createInvoice } from "@/services/invoice.service";
 import { createInvoiceSchema } from "@/lib/validations/invoice";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,15 +17,20 @@ export async function GET(req: NextRequest) {
       Math.max(1, parseInt(searchParams.get("limit") ?? "10", 10))
     );
 
-    const result = await getInvoices({
-      search,
-      status,
-      customerId,
-      startDate,
-      endDate,
-      page,
-      limit,
-    });
+    const userId = await getSessionUserId();
+
+    const result = await getInvoices(
+      {
+        search,
+        status,
+        customerId,
+        startDate,
+        endDate,
+        page,
+        limit,
+      },
+      userId
+    );
 
     return NextResponse.json(result);
   } catch (error: any) {
@@ -49,8 +55,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const invoice = await createInvoice(parsed.data);
+    const userId = await getSessionUserId();
+    const invoice = await createInvoice(parsed.data, userId);
     return NextResponse.json(invoice, { status: 201 });
   } catch (error: any) {
     console.error("[POST /api/invoices]", error);

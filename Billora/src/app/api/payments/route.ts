@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPayments, recordPayment } from "@/services/payment.service";
 import { createPaymentSchema } from "@/lib/validations/payment";
+import { getSessionUserId } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,17 +19,22 @@ export async function GET(req: NextRequest) {
       Math.max(1, parseInt(searchParams.get("limit") ?? "10", 10))
     );
 
-    const result = await getPayments({
-      search,
-      status,
-      method,
-      customerId,
-      invoiceId,
-      startDate,
-      endDate,
-      page,
-      limit,
-    });
+    const userId = await getSessionUserId();
+
+    const result = await getPayments(
+      {
+        search,
+        status,
+        method,
+        customerId,
+        invoiceId,
+        startDate,
+        endDate,
+        page,
+        limit,
+      },
+      userId
+    );
 
     return NextResponse.json(result);
   } catch (error: any) {
@@ -57,12 +63,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payment = await recordPayment(parsed.data);
+    const userId = await getSessionUserId();
+    const payment = await recordPayment(parsed.data, userId);
     return NextResponse.json(payment, { status: 201 });
   } catch (error: any) {
     console.error("[POST /api/payments]", error);
     return NextResponse.json(
-      { error: error.message ?? "Server error while recording payment" },
+      { error: error.message ?? "Server error" },
       { status: 400 }
     );
   }

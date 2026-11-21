@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInvoiceBalance } from "@/services/payment.service";
+import { getSessionUserId } from "@/lib/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -8,7 +9,8 @@ interface RouteParams {
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const balanceInfo = await getInvoiceBalance(id);
+    const userId = await getSessionUserId();
+    const balanceInfo = await getInvoiceBalance(id, userId);
     return NextResponse.json({
       invoiceId: id,
       invoiceNumber: balanceInfo.invoice.invoiceNumber,
