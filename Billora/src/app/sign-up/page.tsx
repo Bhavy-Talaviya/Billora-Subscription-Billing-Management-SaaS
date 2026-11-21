@@ -92,9 +92,9 @@ export default function SignUpPage() {
       heading="Create your account"
       subheading="Get started with Billora subscription & recurring billing management."
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         {serverError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-700">
             {serverError}
           </div>
         )}
@@ -110,11 +110,11 @@ export default function SignUpPage() {
               {...register("name")}
               placeholder="Bhavy Talaviya"
               disabled={loading}
-              className={`pl-9 h-10 text-sm ${errors.name ? "border-red-500" : ""}`}
+              className={`pl-9 h-9 text-xs sm:text-sm ${errors.name ? "border-red-500" : ""}`}
             />
           </div>
           {errors.name && (
-            <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
+            <p className="mt-0.5 text-[11px] text-red-600">{errors.name.message}</p>
           )}
         </div>
 
@@ -130,11 +130,11 @@ export default function SignUpPage() {
               type="email"
               placeholder="admin@billora.com"
               disabled={loading}
-              className={`pl-9 h-10 text-sm ${errors.email ? "border-red-500" : ""}`}
+              className={`pl-9 h-9 text-xs sm:text-sm ${errors.email ? "border-red-500" : ""}`}
             />
           </div>
           {errors.email && (
-            <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
+            <p className="mt-0.5 text-[11px] text-red-600">{errors.email.message}</p>
           )}
         </div>
 
@@ -150,7 +150,7 @@ export default function SignUpPage() {
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               disabled={loading}
-              className={`pl-9 pr-10 h-10 text-sm ${errors.password ? "border-red-500" : ""}`}
+              className={`pl-9 pr-10 h-9 text-xs sm:text-sm ${errors.password ? "border-red-500" : ""}`}
             />
             <button
               type="button"
@@ -166,20 +166,20 @@ export default function SignUpPage() {
             </button>
           </div>
           {errors.password && (
-            <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
+            <p className="mt-0.5 text-[11px] text-red-600">{errors.password.message}</p>
           )}
 
           {/* Password complexity helper chips */}
-          <div className="mt-2 grid grid-cols-2 gap-1.5 pt-1">
+          <div className="mt-1.5 grid grid-cols-2 gap-1">
             {criteria.map((item, idx) => (
               <div
                 key={idx}
-                className={`flex items-center gap-1.5 text-[11px] ${
+                className={`flex items-center gap-1.5 text-[10.5px] ${
                   item.met ? "text-emerald-600 font-medium" : "text-slate-400"
                 }`}
               >
                 <CheckCircle2
-                  className={`h-3 w-3 ${item.met ? "text-emerald-500" : "text-slate-300"}`}
+                  className={`h-3 w-3 shrink-0 ${item.met ? "text-emerald-500" : "text-slate-300"}`}
                 />
                 <span>{item.label}</span>
               </div>
@@ -199,7 +199,7 @@ export default function SignUpPage() {
               type={showConfirmPassword ? "text" : "password"}
               placeholder="••••••••"
               disabled={loading}
-              className={`pl-9 pr-10 h-10 text-sm ${errors.confirmPassword ? "border-red-500" : ""}`}
+              className={`pl-9 pr-10 h-9 text-xs sm:text-sm ${errors.confirmPassword ? "border-red-500" : ""}`}
             />
             <button
               type="button"
@@ -215,7 +215,7 @@ export default function SignUpPage() {
             </button>
           </div>
           {errors.confirmPassword && (
-            <p className="mt-1 text-xs text-red-600">
+            <p className="mt-0.5 text-[11px] text-red-600">
               {errors.confirmPassword.message}
             </p>
           )}
@@ -224,22 +224,22 @@ export default function SignUpPage() {
         <Button
           type="submit"
           disabled={loading}
-          className="w-full h-10 mt-2 bg-[#2563EB] hover:bg-blue-700 text-white font-medium shadow-sm transition-all"
+          className="w-full h-9 mt-1 bg-[#2563EB] hover:bg-blue-700 text-white font-medium text-xs sm:text-sm shadow-sm transition-all"
         >
           {loading ? (
             <span className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Creating Account...
             </span>
           ) : (
             <span className="flex items-center gap-2">
               Create Account
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </span>
           )}
         </Button>
 
-        <div className="pt-2 text-center text-xs text-slate-500">
+        <div className="pt-1.5 text-center text-xs text-slate-500">
           Already have an account?{" "}
           <Link
             href="/sign-in"

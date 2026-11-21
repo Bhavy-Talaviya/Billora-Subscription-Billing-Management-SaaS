@@ -83,7 +83,7 @@ function SignInForm() {
             type="email"
             placeholder="admin@billora.com"
             disabled={loading}
-            className={`pl-9 h-10 text-sm ${errors.email ? "border-red-500" : ""}`}
+            className={`pl-9 h-9 text-xs sm:text-sm ${errors.email ? "border-red-500" : ""}`}
           />
         </div>
         {errors.email && (
@@ -111,7 +111,7 @@ function SignInForm() {
             type={showPassword ? "text" : "password"}
             placeholder="••••••••"
             disabled={loading}
-            className={`pl-9 pr-10 h-10 text-sm ${errors.password ? "border-red-500" : ""}`}
+            className={`pl-9 pr-10 h-9 text-xs sm:text-sm ${errors.password ? "border-red-500" : ""}`}
           />
           <button
             type="button"
@@ -146,7 +146,7 @@ function SignInForm() {
       <Button
         type="submit"
         disabled={loading}
-        className="w-full h-10 bg-[#2563EB] hover:bg-blue-700 text-white font-medium shadow-sm transition-all"
+        className="w-full h-9 bg-[#2563EB] hover:bg-blue-700 text-white font-medium text-xs sm:text-sm shadow-sm transition-all"
       >
         {loading ? (
           <span className="flex items-center gap-2">
