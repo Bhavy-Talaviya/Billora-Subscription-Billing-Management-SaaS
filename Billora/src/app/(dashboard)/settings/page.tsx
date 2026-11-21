@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SignOutConfirmDialog } from "@/components/auth/SignOutConfirmDialog";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
@@ -191,11 +192,30 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base font-semibold">User Profile Information</CardTitle>
             <CardDescription className="text-xs">
-              Update your account name and email address for system notifications and workspace audit logs.
+              Update your account name, avatar, and email address for system notifications and workspace audit logs.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleUpdateAccount} className="space-y-4 max-w-xl">
+            <form onSubmit={handleUpdateAccount} className="space-y-5 max-w-xl">
+              {/* Live Avatar Preview Card */}
+              <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <UserAvatar
+                  name={name || "User"}
+                  image={avatarUrl || session?.user?.image}
+                  size="xl"
+                  className="ring-2 ring-white shadow-sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-slate-900 truncate">
+                    {name || "Your Name"}
+                  </h4>
+                  <p className="text-xs text-slate-500 truncate">{email || "your.email@example.com"}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Live avatar preview across header, sidebar, and workspace comments.
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-700">Full Name</label>
                 <Input
@@ -224,9 +244,12 @@ export default function SettingsPage() {
                 <Input
                   value={avatarUrl}
                   onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
+                  placeholder="https://images.unsplash.com/... or GitHub avatar URL"
                   className="mt-1"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Paste any public image URL (PNG, JPG, WebP) to display as your workspace profile photo.
+                </p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-700">Workspace Role</label>

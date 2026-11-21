@@ -21,6 +21,7 @@ import {
   Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -197,9 +198,12 @@ export function Sidebar({ onCloseMobile, className }: SidebarProps) {
                 aria-label="User profile options"
               >
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-white font-semibold text-sm">
-                    {getInitials(userName)}
-                  </div>
+                  <UserAvatar
+                    name={userName}
+                    image={session?.user?.image}
+                    size="md"
+                    className="ring-1 ring-slate-700"
+                  />
                   <div className="flex flex-col truncate">
                     <span className="truncate text-xs font-semibold text-white">
                       {userName}

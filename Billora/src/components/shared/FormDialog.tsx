@@ -37,18 +37,20 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${maxWClass} sm:rounded-xl`}>
-        <DialogHeader>
+      <DialogContent
+        className={`${maxWClass} sm:rounded-xl max-h-[90vh] overflow-y-auto p-5 sm:p-6`}
+      >
+        <DialogHeader className="pb-1 border-b border-slate-100">
           <DialogTitle className="text-lg font-semibold text-slate-900">
             {title}
           </DialogTitle>
           {description && (
-            <DialogDescription className="text-sm text-slate-500">
+            <DialogDescription className="text-xs text-slate-500 mt-1">
               {description}
             </DialogDescription>
           )}
         </DialogHeader>
-        <div className="mt-2">{children}</div>
+        <div className="mt-3">{children}</div>
       </DialogContent>
     </Dialog>
   );

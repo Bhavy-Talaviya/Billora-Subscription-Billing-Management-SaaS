@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { FormDialog } from "@/components/shared/FormDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,9 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Loader2,
+  Receipt,
+  FilePlus2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -78,16 +82,25 @@ export function RecordPaymentDialog({
         const res = await fetch("/api/invoices?limit=100");
         if (res.ok) {
           const data = await res.json();
-          // Filter out DRAFT invoices; list invoices that need payment or all
-          const eligible = (data.invoices || []).filter(
+          const allList = (data.invoices || []).filter(
             (inv: any) => inv.status !== "DRAFT"
           );
-          setInvoices(eligible);
+
+          // Sort so PENDING & OVERDUE invoices appear first
+          const sorted = [...allList].sort((a, b) => {
+            if (a.status !== "PAID" && b.status === "PAID") return -1;
+            if (a.status === "PAID" && b.status !== "PAID") return 1;
+            return 0;
+          });
+
+          setInvoices(sorted);
 
           if (preselectedInvoiceId) {
             setSelectedInvoiceId(preselectedInvoiceId);
-          } else if (eligible.length > 0) {
-            setSelectedInvoiceId(eligible[0].id);
+          } else if (sorted.length > 0) {
+            setSelectedInvoiceId(sorted[0].id);
+          } else {
+            setSelectedInvoiceId("");
           }
         }
       } catch {
@@ -112,8 +125,8 @@ export function RecordPaymentDialog({
         if (res.ok) {
           const data = await res.json();
           setBalanceData(data);
-          // Default amount to remaining balance
-          setAmount(data.remainingBalance);
+          // Default payment amount to remaining balance
+          setAmount(Number(data.remainingBalance.toFixed(2)));
         }
       } catch {
         console.error("Failed to load invoice balance");
@@ -145,11 +158,17 @@ export function RecordPaymentDialog({
     }
   };
 
+  const handleSetQuickAmount = (ratio: number) => {
+    if (!balanceData) return;
+    const computed = Number((balanceData.remainingBalance * ratio).toFixed(2));
+    setAmount(computed);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedInvoiceId) {
-      toast.error("Please select an invoice.");
+      toast.error("Please select an invoice to record a payment.");
       return;
     }
 
@@ -208,104 +227,181 @@ export function RecordPaymentDialog({
     }
   };
 
+  const isFullyPaid = balanceData?.isFullyPaid || (balanceData?.remainingBalance ?? 0) <= 0;
+
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Record Payment"
-      description="Simulate a client payment transaction against an invoice. No real financial credentials are required or stored."
+      description="Simulate a customer invoice payment. No real cards or financial credentials are required or processed."
       maxWidth="lg"
     >
       {loadingInvoices ? (
-        <div className="py-8 text-center text-sm text-slate-500">
-          Loading invoice data...
+        <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-500">
+          <Loader2 className="h-6 w-6 animate-spin text-[#2563EB]" />
+          <span className="text-xs">Loading available invoices...</span>
+        </div>
+      ) : invoices.length === 0 ? (
+        <div className="py-8 text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Receipt className="h-6 w-6" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900">
+              No Invoices Available
+            </h4>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+              There are currently no active or pending invoices in your workspace. Create an invoice first before recording payments.
+            </p>
+          </div>
+          <div className="pt-2 flex justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+            >
+              Close
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="bg-[#2563EB] hover:bg-blue-700 text-white"
+            >
+              <Link href="/invoices/create" onClick={() => onOpenChange(false)}>
+                <FilePlus2 className="h-3.5 w-3.5 mr-1.5" />
+                Create New Invoice
+              </Link>
+            </Button>
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Step 1: Select Invoice */}
           <div>
-            <label className="text-xs font-semibold text-slate-700">
-              Select Invoice <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700">
+                Target Invoice <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-slate-400">
+                {invoices.length} invoices found
+              </span>
+            </div>
             <select
               value={selectedInvoiceId}
               onChange={(e) => setSelectedInvoiceId(e.target.value)}
-              className="mt-1 flex h-9 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
+              className="mt-1 flex h-9 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-[#2563EB] focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
               required
             >
               {invoices.map((inv) => (
                 <option key={inv.id} value={inv.id}>
-                  {inv.invoiceNumber} — {inv.customer.name} (Total: $
-                  {Number(inv.total).toFixed(2)}) [{inv.status}]
+                  {inv.invoiceNumber} — {inv.customer.name} (${Number(inv.total).toFixed(2)}) [{inv.status}]
                 </option>
               ))}
             </select>
           </div>
 
           {/* Step 2: Invoice Balance Details Card */}
-          {balanceData && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-2">
+          {loadingBalance ? (
+            <div className="p-4 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-center gap-2 text-xs text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin text-[#2563EB]" />
+              Calculating live balance...
+            </div>
+          ) : balanceData && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-2.5">
               <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="font-semibold text-slate-700">
+                <span className="font-semibold text-slate-700 truncate max-w-[240px]">
                   Customer: {balanceData.customer.name}
                 </span>
                 <span
                   className={`font-semibold px-2 py-0.5 rounded-full text-[10px] ${
                     balanceData.isFullyPaid
-                      ? "bg-green-100 text-green-800"
+                      ? "bg-emerald-100 text-emerald-800"
                       : "bg-blue-100 text-[#2563EB]"
                   }`}
                 >
                   {balanceData.isFullyPaid ? "Fully Paid" : "Balance Due"}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                <div className="bg-white p-2 rounded border border-slate-100">
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
-                    Invoice Total
+              <div className="grid grid-cols-3 gap-2 text-center pt-0.5">
+                <div className="bg-white p-2 rounded-md border border-slate-100 shadow-xs">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+                    Total
                   </span>
-                  <span className="font-bold text-slate-900 text-sm">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
                     ${balanceData.total.toFixed(2)}
                   </span>
                 </div>
-                <div className="bg-white p-2 rounded border border-slate-100">
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
-                    Already Paid
+                <div className="bg-white p-2 rounded-md border border-slate-100 shadow-xs">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+                    Paid
                   </span>
-                  <span className="font-bold text-emerald-600 text-sm">
+                  <span className="font-bold text-emerald-600 text-xs sm:text-sm">
                     ${balanceData.paidAmount.toFixed(2)}
                   </span>
                 </div>
-                <div className="bg-white p-2 rounded border border-slate-100">
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                <div className="bg-white p-2 rounded-md border border-slate-100 shadow-xs">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
                     Remaining
                   </span>
-                  <span className="font-bold text-[#2563EB] text-sm">
+                  <span className="font-bold text-[#2563EB] text-xs sm:text-sm">
                     ${balanceData.remainingBalance.toFixed(2)}
                   </span>
                 </div>
               </div>
+
+              {isFullyPaid && (
+                <div className="flex items-center gap-2 p-2 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[11px]">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    This invoice is fully settled. Additional successful payments may be blocked by overpayment safeguards.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 3: Enter Payment Amount */}
+          {/* Step 3: Payment Amount & Date with Quick Fill buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-slate-700">
-                Payment Amount ($) <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700">
+                  Payment Amount ($) <span className="text-red-500">*</span>
+                </label>
+                {balanceData && balanceData.remainingBalance > 0 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleSetQuickAmount(1.0)}
+                      className="text-[10px] text-[#2563EB] hover:underline font-semibold"
+                    >
+                      Full (${balanceData.remainingBalance.toFixed(2)})
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSetQuickAmount(0.5)}
+                      className="text-[10px] text-slate-600 hover:underline"
+                    >
+                      50%
+                    </button>
+                  </div>
+                )}
+              </div>
               <Input
                 type="number"
                 step="0.01"
                 min="0.01"
-                max={balanceData ? balanceData.remainingBalance : undefined}
-                value={amount}
+                max={balanceData && balanceData.remainingBalance > 0 ? balanceData.remainingBalance : undefined}
+                value={amount || ""}
                 onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
                 className="mt-1 text-sm font-semibold"
                 required
               />
               <span className="text-[11px] text-slate-400 mt-0.5 block">
-                Supports partial payments up to the balance.
+                Supports full and partial invoice payments.
               </span>
             </div>
 
@@ -342,9 +438,9 @@ export function RecordPaymentDialog({
                     key={m.id}
                     type="button"
                     onClick={() => handleMethodChange(m.id as any)}
-                    className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-xs font-medium transition-all ${
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg border text-xs font-medium transition-all ${
                       isSelected
-                        ? "border-[#2563EB] bg-blue-50/70 text-[#2563EB]"
+                        ? "border-[#2563EB] bg-blue-50/70 text-[#2563EB] ring-1 ring-[#2563EB]"
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     }`}
                   >
@@ -369,7 +465,7 @@ export function RecordPaymentDialog({
               className="mt-1 text-xs text-slate-600"
             />
             <p className="text-[10px] text-slate-400 mt-1">
-              Educational simulation only. Never enter real account or card numbers.
+              Educational simulation only. Never enter real account or card credentials.
             </p>
           </div>
 
@@ -382,7 +478,7 @@ export function RecordPaymentDialog({
               <label
                 className={`p-2 rounded-lg border text-xs cursor-pointer text-center font-medium flex items-center justify-center gap-1.5 transition-all ${
                   simulatedStatus === "SUCCEEDED"
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-500"
                     : "border-slate-200 text-slate-600 hover:border-slate-300"
                 }`}
               >
@@ -401,7 +497,7 @@ export function RecordPaymentDialog({
               <label
                 className={`p-2 rounded-lg border text-xs cursor-pointer text-center font-medium flex items-center justify-center gap-1.5 transition-all ${
                   simulatedStatus === "PENDING"
-                    ? "border-amber-500 bg-amber-50 text-amber-800"
+                    ? "border-amber-500 bg-amber-50 text-amber-800 ring-1 ring-amber-500"
                     : "border-slate-200 text-slate-600 hover:border-slate-300"
                 }`}
               >
@@ -420,7 +516,7 @@ export function RecordPaymentDialog({
               <label
                 className={`p-2 rounded-lg border text-xs cursor-pointer text-center font-medium flex items-center justify-center gap-1.5 transition-all ${
                   simulatedStatus === "FAILED"
-                    ? "border-red-500 bg-red-50 text-red-800"
+                    ? "border-red-500 bg-red-50 text-red-800 ring-1 ring-red-500"
                     : "border-slate-200 text-slate-600 hover:border-slate-300"
                 }`}
               >
@@ -437,12 +533,12 @@ export function RecordPaymentDialog({
               </label>
             </div>
             <span className="text-[10px] text-slate-400 mt-1 block">
-              Failed payments will NOT reduce the invoice balance.
+              Failed payments will NOT reduce invoice balances.
             </span>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          {/* Action buttons (sticky footer) */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 bg-white sticky bottom-0 z-10">
             <Button
               type="button"
               variant="outline"
@@ -453,10 +549,17 @@ export function RecordPaymentDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || amount <= 0}
+              disabled={isSubmitting || amount <= 0 || (isFullyPaid && simulatedStatus === "SUCCEEDED")}
               className="bg-[#2563EB] hover:bg-blue-700 text-white min-w-[130px]"
             >
-              {isSubmitting ? "Processing..." : "Record Payment"}
+              {isSubmitting ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing...
+                </span>
+              ) : (
+                "Record Payment"
+              )}
             </Button>
           </div>
         </form>
