@@ -26,42 +26,7 @@
 
 ---
 
-## 📑 Table of Contents
-
-- [1. About the Project](#1-about-the-project)
-- [2. Problem Statement](#2-problem-statement)
-- [3. Project Objectives](#3-project-objectives)
-- [4. Key Features](#4-key-features)
-- [5. Dashboard and Analytics](#5-dashboard-and-analytics)
-- [6. Customer Management](#6-customer-management)
-- [7. Product and Pricing Management](#7-product-and-pricing-management)
-- [8. Subscription Management](#8-subscription-management)
-- [9. Invoice Management](#9-invoice-management)
-- [10. Payment Management](#10-payment-management)
-- [11. Authentication and User Management](#11-authentication-and-user-management)
-- [12. Technology Stack](#12-technology-stack)
-- [13. Screenshots](#13-screenshots)
-- [14. Project Folder Structure](#14-project-folder-structure)
-- [15. Database Architecture and Relationships](#15-database-architecture-and-relationships)
-- [16. Getting Started](#16-getting-started)
-- [17. Prerequisites](#17-prerequisites)
-- [18. Installation Instructions](#18-installation-instructions)
-- [19. Environment Variables](#19-environment-variables)
-- [20. Database Setup and Migrations](#20-database-setup-and-migrations)
-- [21. Development Server](#21-development-server)
-- [22. API Documentation](#22-api-documentation)
-- [23. Testing Instructions](#23-testing-instructions)
-- [24. Security Practices](#24-security-practices)
-- [25. Deployment on Vercel](#25-deployment-on-vercel)
-- [26. Future Enhancements](#26-future-enhancements)
-- [27. Contributing Guidelines](#27-contributing-guidelines)
-- [28. Author Information](#28-author-information)
-- [29. License](#29-license)
-- [30. Closing Message](#30-closing-message)
-
----
-
-## 1. About the Project
+## 1. About the Project:-
 
 **Billora** is a full-stack SaaS recurring billing and subscription management platform built for modern subscription businesses, digital agencies, SaaS startups, and independent software vendors.
 
@@ -71,7 +36,7 @@ Built on the Next.js App Router and PostgreSQL with Prisma ORM, Billora emphasiz
 
 ---
 
-## 2. Problem Statement
+## 2. Problem Statement:-
 
 Growing digital businesses frequently face operational bottlenecks when managing recurring revenue:
 
@@ -84,7 +49,7 @@ Billora solves these challenges by providing an integrated, ledger-accurate plat
 
 ---
 
-## 3. Project Objectives
+## 3. Project Objectives:-
 
 1. **End-to-End Subscription Automation:** Model complete subscription lifecycles from creation and active renewal to plan upgrades, pauses, and cancellations.
 2. **Accurate Invoicing & Ledger Records:** Automatically compute line items, tax, discounts, subtotal, and total balances, generating printable PDF invoices on demand.
@@ -94,7 +59,7 @@ Billora solves these challenges by providing an integrated, ledger-accurate plat
 
 ---
 
-## 4. Key Features
+## 4. Key Features:-
 
 - 🔐 **Authentication & Account Management:** Credentials registration, bcrypt password hashing, JWT sessions, profile updates, and password resets.
 - 🏢 **Multi-Tenant Data Isolation:** Automatic tenant scoping across customers, products, plans, subscriptions, invoices, and payments.
@@ -107,7 +72,7 @@ Billora solves these challenges by providing an integrated, ledger-accurate plat
 
 ---
 
-## 5. Dashboard and Analytics
+## 5. Dashboard and Analytics:-
 
 The Billora **Executive Dashboard** and dedicated **Revenue & Analytics** views provide live financial visibility:
 
@@ -124,7 +89,7 @@ The Billora **Executive Dashboard** and dedicated **Revenue & Analytics** views 
 
 ---
 
-## 6. Customer Management
+## 6. Customer Management:-
 
 The **Customers** module provides a centralized directory for all billing accounts:
 
@@ -136,7 +101,7 @@ The **Customers** module provides a centralized directory for all billing accoun
 
 ---
 
-## 7. Product and Pricing Management
+## 7. Product and Pricing Management:-
 
 The **Products & Pricing** module allows operators to model SaaS catalogs:
 
@@ -150,7 +115,7 @@ The **Products & Pricing** module allows operators to model SaaS catalogs:
 
 ---
 
-## 8. Subscription Management
+## 8. Subscription Management:-
 
 The **Subscriptions** engine manages recurring commitments:
 
@@ -166,7 +131,7 @@ The **Subscriptions** engine manages recurring commitments:
 
 ---
 
-## 9. Invoice Management
+## 9. Invoice Management:-
 
 The **Invoices** module generates and manages billing documents:
 
@@ -182,7 +147,7 @@ The **Invoices** module generates and manages billing documents:
 
 ---
 
-## 10. Payment Management
+## 10. Payment Management:-
 
 The **Payments** module records and tracks transaction collections:
 
@@ -197,7 +162,7 @@ The **Payments** module records and tracks transaction collections:
 
 ---
 
-## 11. Authentication and User Management
+## 11. Authentication and User Management:-
 
 Billora includes a secure authentication and multi-tenancy subsystem:
 
@@ -210,7 +175,7 @@ Billora includes a secure authentication and multi-tenancy subsystem:
 
 ---
 
-## 12. Technology Stack
+## 12. Technology Stack:-
 
 | Layer | Technology | Version | Purpose |
 |---|---|---|---|
@@ -234,52 +199,7 @@ Billora includes a secure authentication and multi-tenancy subsystem:
 
 ---
 
-## 13. Screenshots
-
-<!-- 
-NOTE: Screenshots can be placed in docs/screenshots/ and updated with your own captures.
-Placeholders below point to the default repository paths.
--->
-
-### Dashboard Overview
-![Dashboard Overview](docs/screenshots/dashboard.png)
-*Real-time executive metrics: ARR, MRR, churn rate, revenue collections, and live growth graphs.*
-
-### Customer Management
-![Customer Directory](docs/screenshots/customers.png)
-*Customer listing, search, filtering, and customer detail views.*
-
-### Subscriptions Management
-![Subscription Ledger](docs/screenshots/subscriptions.png)
-*Active subscriptions, status badges, plan anchors, and action menus.*
-
-### Products & Pricing Plans
-![Products and Pricing](docs/screenshots/products.png)
-*Product catalog and monthly, yearly, and one-time pricing models.*
-
-### Invoicing & PDF Downloads
-![Invoice Management](docs/screenshots/invoices.png)
-*Multi-item invoice calculations, payment status badges, and PDF generation.*
-
-### Payment History
-![Payment Records](docs/screenshots/payments.png)
-*Simulated multi-method payment records and real-time ledger settlement.*
-
-### Revenue & Analytics
-![Revenue Analytics](docs/screenshots/analytics.png)
-*Plan cohort breakdowns, ARPU metrics, LTV indicators, and auto-syncing charts.*
-
-### Authentication: Sign In
-![Sign In Page](docs/screenshots/sign-in.png)
-*Secure email and password authentication with validation.*
-
-### Authentication: Sign Up
-![Sign Up Page](docs/screenshots/sign-up.png)
-*User account creation with strict password rules and tenant provisioning.*
-
----
-
-## 14. Project Folder Structure
+## 13. Project Folder Structure:-
 
 ```text
 Billora-Subscription-Billing-Management-SaaS/
@@ -389,7 +309,7 @@ Billora-Subscription-Billing-Management-SaaS/
 
 ---
 
-## 15. Database Architecture and Relationships
+## 14. Database Architecture and Relationships:-
 
 Billora uses PostgreSQL with Prisma ORM. The relational architecture ensures auditability, prevents orphaned ledger records, and supports multi-tenancy via foreign key relations.
 
@@ -498,23 +418,9 @@ erDiagram
         datetime paidAt
     }
 ```
-
-### Relational Dynamics:
-- **Tenant Isolation:** `User` has one-to-many relationships with `Customer`, `Product`, `Subscription`, `Invoice`, and `Payment`. Every query filters by `userId` to ensure data segregation.
-- **Catalog Modeling:** A `Product` defines high-level offerings; `Price` records specify the recurring billing terms (`MONTHLY`, `YEARLY`, `ONE_TIME`) and amounts.
-- **Subscription Ties:** A `Subscription` connects a `Customer` to a specific `Price`, maintaining period anchors.
-- **Invoices & Items:** An `Invoice` contains multiple line items (`InvoiceItem`) and can optionally link to the parent `Subscription`.
-- **Payment Settlement:** A `Payment` directly references an `Invoice` and `Customer`. When payments satisfy the total invoice amount, the invoice transitions to `PAID`.
-
 ---
 
-## 16. Getting Started
-
-Follow the instructions below to configure and run Billora on your local machine.
-
----
-
-## 17. Prerequisites
+## 15. Prerequisites:-
 
 Ensure you have the following installed locally:
 
@@ -525,7 +431,7 @@ Ensure you have the following installed locally:
 
 ---
 
-## 18. Installation Instructions
+## 16. Installation Instructions:-
 
 ### 1. Clone the Repository
 ```bash
@@ -540,7 +446,7 @@ npm install
 
 ---
 
-## 19. Environment Variables
+## 17. Environment Variables:-
 
 Create a `.env` file inside the `Billora` directory by copying `.env.example`:
 
@@ -572,7 +478,7 @@ STRIPE_WEBHOOK_SECRET="whsec_sample_key"
 
 ---
 
-## 20. Database Setup and Migrations
+## 18. Database Setup and Migrations:-
 
 ### 1. Generate Prisma Client
 Generates the strongly-typed Prisma client tailored to your schema:
@@ -601,7 +507,7 @@ npx tsx prisma/seed.ts
 
 ---
 
-## 21. Development Server
+## 19. Development Server:-
 
 Start the local development server:
 
@@ -618,7 +524,7 @@ The application will automatically direct unauthenticated visitors to `/sign-in`
 
 ---
 
-## 22. API Documentation
+## 20. API Documentation:-
 
 All backend operations are powered by Next.js API Route Handlers under `/api`. All endpoints return standard JSON responses and enforce tenant authentication.
 
@@ -694,131 +600,7 @@ All backend operations are powered by Next.js API Route Handlers under `/api`. A
 
 ---
 
-## 23. Testing Instructions
-
-Billora uses [Vitest](https://vitest.dev/) for unit and integration testing across core business logic, currency formatting, payment reconciliation, invoice calculations, and auth schemas.
-
-### 1. Run Automated Test Suite
-```bash
-npm run test
-```
-
-### 2. Run TypeScript Static Type Checking
-```bash
-npx tsc --noEmit
-```
-
-### 3. Run ESLint Code Quality Check
-```bash
-npm run lint
-```
-
-### 4. Run Production Build Verification
-```bash
-npm run build
-```
-
-### End-to-End Test Scenarios Covered:
-- **Currency & Intervals:** Formatting logic for USD, EUR, INR, GBP across monthly, yearly, and one-time pricing models.
-- **Invoice Math:** Automated tax, discounts, line-item totals, and net balance evaluations.
-- **Payment Processing:** Succeeded vs. failed payment handling and invoice status synchronization.
-- **Authentication:** Password strength regex, hashing verification, and token expiration logic.
-- **Workflows (A through J):** Complete lifecycle testing from customer creation and subscription activation to PDF generation.
-
----
-
-## 24. Security Practices
-
-Billora implements industry-standard security practices across all layers:
-
-1. **Password Hashing:** Passwords are never stored in plaintext. They are salted and hashed using `bcryptjs` before database insertion.
-2. **Stateless JWT Sessions:** User sessions use cryptographically signed tokens verified via middleware.
-3. **Strict Multi-Tenancy:** All queries, mutations, stats, and reports filter by the authenticated user's ID (`userId`), preventing cross-tenant data access.
-4. **Server-Side Validation:** All API inputs are validated against strict Zod schemas before reaching service layers or database transactions.
-5. **Database Transaction Safety:** Multi-record workflows (e.g., subscription creation + invoice generation + payment capture) run inside atomic `prisma.$transaction` blocks to prevent partial writes.
-6. **No Real Financial Data Stored:** Simulated card numbers are masked; no raw credit card details or CVVs are collected or stored.
-7. **Safe Error Handling:** Database exceptions are logged server-side and sanitized before responding to users, preventing internal schema or credential leakage.
-
----
-
-## 25. Deployment on Vercel
-
-Billora is optimized for deployment on the [Vercel](https://vercel.com/) platform.
-
-### Step-by-Step Deployment:
-
-1. **Push Code to GitHub:**
-   Ensure your latest code is committed and pushed to your GitHub repository.
-2. **Connect Database:**
-   Provision a managed PostgreSQL instance using [Neon](https://neon.tech/), [Supabase](https://supabase.com/), or [Render](https://render.com/).
-3. **Import Project into Vercel:**
-   - Log into your Vercel dashboard.
-   - Click **Add New Project** and select your Billora repository.
-   - Set the Root Directory to `Billora` (if applicable).
-4. **Configure Production Environment Variables:**
-   Add the following in Vercel's Project Settings:
-   - `DATABASE_URL`: Your production PostgreSQL connection string.
-   - `NEXTAUTH_SECRET`: A secure 32-character random string.
-   - `NEXTAUTH_URL`: Your Vercel domain (e.g., `https://your-billora-app.vercel.app`).
-   - `NEXT_PUBLIC_APP_URL`: Your Vercel domain.
-5. **Deploy:**
-   Click **Deploy**. Vercel will build the application, optimize static pages, and serve serverless route handlers.
-6. **Apply Schema Migrations:**
-   In your terminal or CI pipeline, run:
-   ```bash
-   npx prisma db push
-   ```
-
----
-
-## 26. Future Enhancements
-
-- [ ] **Live Stripe & Razorpay Webhook Integration:** Bi-directional sync with production payment gateway webhooks.
-- [ ] **Automated Email Notifications:** Transactional emails via Resend or SendGrid for invoice issuance, payment receipts, and upcoming renewals.
-- [ ] **AI-Powered Revenue Forecasting:** Predictive ARR/MRR modeling and churn risk alerts.
-- [ ] **Customer Self-Service Portal:** Dedicated external portal for subscribers to update payment methods and view invoice history.
-- [ ] **Multi-Organization Switching:** Allow users to create and switch between multiple company workspaces under one login.
-- [ ] **Audit Trail & Event Logs:** Detailed changelog tracking user actions across invoices, payments, and subscriptions.
-
----
-
-## 27. Contributing Guidelines
-
-Contributions are welcome! To contribute:
-
-1. **Fork** the repository.
-2. **Create a Feature Branch:**
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. **Commit Your Changes:**
-   ```bash
-   git commit -m "feat: add amazing feature"
-   ```
-4. **Push to the Branch:**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-5. **Open a Pull Request** describing your changes.
-
----
-
-## 28. Author Information
-
-**YOUR_NAME**
-- **GitHub:** [YOUR_GITHUB_PROFILE_URL](YOUR_GITHUB_PROFILE_URL)
-- **LinkedIn:** [YOUR_LINKEDIN_URL](YOUR_LINKEDIN_URL)
-- **Portfolio / Website:** `COMING SOON`
-
----
-
-## 29. License
-
-This project is open-source and available under the **MIT License**.
-
----
-
-## 30. Closing Message
+## 21. Closing Message:-
 
 <p align="center">
   <b>Thank you for exploring Billora!</b>
