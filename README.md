@@ -20,8 +20,8 @@
 </p>
 
 <p align="center">
-  <b>Repository:</b> <a href="YOUR_GITHUB_REPOSITORY_URL">YOUR_GITHUB_REPOSITORY_URL</a> &nbsp;|&nbsp;
-  <b>Live Demo:</b> <code>COMING SOON</code>
+  <b>Repository:</b> <a href="https://github.com/Bhavy-Talaviya/Billora-Subscription-Billing-Management-SaaS">Billora-Github</a> &nbsp;|&nbsp;
+  <b>Live Demo:</b> <a href="https://billora-subscription-billing-manage.vercel.app/">Billora-LiveDemo</a>
 </p>
 
 ---
