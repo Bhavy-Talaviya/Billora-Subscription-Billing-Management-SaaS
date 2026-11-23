@@ -128,6 +128,25 @@ export async function changeUserPassword(
   return true;
 }
 
+export function getAppBaseUrl(): string {
+  if (
+    process.env.NEXT_PUBLIC_APP_URL &&
+    !process.env.NEXT_PUBLIC_APP_URL.includes("localhost")
+  ) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://billora-subscription-billing-manage.vercel.app";
+  }
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
+
 /**
  * Generates single-use password reset token with 1 hour expiration
  */
@@ -166,7 +185,7 @@ export async function createPasswordResetToken(
     },
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = getAppBaseUrl();
   const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`;
 
   return { rawToken, resetUrl };

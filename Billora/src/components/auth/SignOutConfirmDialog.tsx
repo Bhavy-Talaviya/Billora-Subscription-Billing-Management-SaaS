@@ -30,9 +30,9 @@ export function SignOutConfirmDialog({
     try {
       toast.success("Signed out successfully.");
       await signOut({
-        callbackUrl: "/sign-in",
-        redirect: true,
+        redirect: false,
       });
+      window.location.href = "/sign-in";
     } catch {
       toast.error("Failed to sign out. Please try again.");
       setLoading(false);
